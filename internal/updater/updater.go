@@ -1,14 +1,11 @@
-// Package updater handles GUI/core update checks and the remote license
-// window published in the release repository.
+// Package updater handles GUI/core update checks. The update feed lives in
+// version.json in the publishing repo; the Aether core comes from the
+// official upstream releases.
 //
-// Two independent feeds are consulted:
-//
-//   - the GUI comes from the publishing repo (version.json at its root), which
-//     also carries the license parameters so they can be tuned remotely;
-//   - the Aether core comes from the official upstream releases.
-//
-// A machine that cannot reach the network is never locked out: every check
-// fails open.
+// The old remote license/trial window has been removed: Xiaohe is
+// unconditionally licensed, and a machine that cannot reach the network is
+// never locked out — every check fails open.
+
 package updater
 
 import (
@@ -21,7 +18,6 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
-	"strconv"
 	"strings"
 	"time"
 
@@ -35,9 +31,6 @@ const (
 	// is appended when resolving which core to install.
 	CoreReleaseAPI = "https://api.github.com/repos/CluvexStudio/Aether/releases"
 
-	// DefaultMessage / DefaultContact are used when the manifest omits them.
-	DefaultMessage = "软件已到期，请联系作者续期"
-	DefaultContact = "Telegram: @xiaoheok\nEmail: hezhanleiok@gmail.com"
 )
 
 // Manifest mirrors version.json in the publishing repository.
@@ -54,13 +47,6 @@ type Manifest struct {
 		Version string `json:"version"`
 		Notes   string `json:"notes"`
 	} `json:"core"`
-	License struct {
-		Enabled   bool   `json:"enabled"`
-		Expiry    string `json:"expiry"`     // fixed cutoff, "2006-01-02"
-		TrialDays int    `json:"trial_days"` // or days counted from first run
-		Message   string `json:"message"`
-		Contact   string `json:"contact"`
-	} `json:"license"`
 }
 
 // UpdateInfo is the result of one check, sent to the UI.
@@ -79,15 +65,13 @@ type UpdateInfo struct {
 	Error     string `json:"error,omitempty"`
 }
 
-// License is the state of the remote license window.
+// License is the license state shown in the UI. Xiaohe is unconditionally
+// licensed: DaysLeft is always -1 (unlimited), which the UI renders as
+// "无限制". Kept as a struct so the JSON shape stays stable.
 type License struct {
-	Expired  bool   `json:"expired"`
-	DaysLeft int    `json:"days_left"` // -1 means unlimited/unknown
-	ExpiryAt string `json:"expiry_at,omitempty"`
-	Message  string `json:"message"`
-	Contact  string `json:"contact"`
-	Offline  bool   `json:"offline"`
+	DaysLeft int `json:"days_left"` // -1 = unlimited
 }
+
 
 // systemProxy returns the proxy configured in Internet Settings, if enabled.
 // GitHub is not reachable directly on some networks, so update checks must
@@ -218,68 +202,10 @@ func Check(guiVer, coreVer string) *UpdateInfo {
 	return info
 }
 
-// firstRun records (once) when this installation was first started, so a
-// trial window can be counted from the user's own beginning.
-func firstRun(dir string) time.Time {
-	p := filepath.Join(dir, "firstrun")
-	if b, err := os.ReadFile(p); err == nil {
-		if n, err := strconv.ParseInt(strings.TrimSpace(string(b)), 10, 64); err == nil && n > 0 {
-			return time.Unix(n, 0)
-		}
-	}
-	now := time.Now()
-	_ = os.MkdirAll(dir, 0o755)
-	_ = os.WriteFile(p, []byte(strconv.FormatInt(now.Unix(), 10)), 0o644)
-	return now
-}
-
-// LicenseStatus evaluates the remote license window. Offline, disabled or
-// unreadable configurations always grant access.
-func LicenseStatus(dir string) License {
-	m, err := FetchManifest()
-	if err != nil {
-		return License{Offline: true, DaysLeft: -1}
-	}
-	lc := m.License
-	if !lc.Enabled {
-		return License{DaysLeft: -1}
-	}
-
-	msg := lc.Message
-	if strings.TrimSpace(msg) == "" {
-		msg = DefaultMessage
-	}
-	contact := lc.Contact
-	if strings.TrimSpace(contact) == "" {
-		contact = DefaultContact
-	}
-
-	// A fixed cutoff wins over the rolling trial window.
-	if lc.Expiry != "" {
-		if t, err := time.Parse("2006-01-02", lc.Expiry); err == nil {
-			end := t.AddDate(0, 0, 1) // the expiry day itself is still usable
-			if !time.Now().Before(end) {
-				return License{Expired: true, Message: msg, Contact: contact, ExpiryAt: lc.Expiry}
-			}
-			return License{DaysLeft: int(time.Until(end).Hours() / 24), ExpiryAt: lc.Expiry}
-		}
-	}
-	if lc.TrialDays > 0 {
-		deadline := firstRun(dir).AddDate(0, 0, lc.TrialDays)
-		if !time.Now().Before(deadline) {
-			return License{
-				Expired:  true,
-				Message:  msg,
-				Contact:  contact,
-				ExpiryAt: deadline.Format("2006-01-02"),
-			}
-		}
-		return License{
-			DaysLeft: int(time.Until(deadline).Hours() / 24),
-			ExpiryAt: deadline.Format("2006-01-02"),
-		}
-	}
-	return License{DaysLeft: -1}
+// LicenseStatus reports the license state. Xiaohe is unconditionally
+// licensed: the old remote trial/expiry window is removed, so every build
+func LicenseStatus() License {
+	return License{DaysLeft: -1} // -1 = unlimited/unknown; UI renders "无限制"
 }
 
 // download fetches url into dest, writing through a .part file first.

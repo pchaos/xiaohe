@@ -662,13 +662,10 @@ func (b *Bridge) updateState() *updater.UpdateInfo {
 }
 
 func (b *Bridge) refreshLicense() {
-	lic := updater.LicenseStatus(config.Dir())
+	lic := updater.LicenseStatus()
 	b.upMu.Lock()
 	b.license = lic
 	b.upMu.Unlock()
-	if lic.Expired {
-		logx.Warnf("[update] license expired at %s", lic.ExpiryAt)
-	}
 }
 
 func (b *Bridge) refreshUpdate() *updater.UpdateInfo {

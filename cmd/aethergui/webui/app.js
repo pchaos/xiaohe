@@ -990,14 +990,9 @@ function renderAbout() {
   $('#abGui').textContent = 'v' + v.gui;
   $('#abCore').textContent = (v.core || '—').split('\n')[0];
   $('#abBackend').textContent = v.backend || '—';
+  // License is unconditional (removed trial/expiry window): show it plainly.
   const lic = $('#abExpiry');
-  if (lic) {
-    if (!licState) lic.textContent = '检查中…';
-    else if (licState.expired) lic.textContent = '已到期';
-    else if (licState.offline) lic.textContent = '未检查（离线）';
-    else if (licState.days_left >= 0) lic.textContent = licState.expiry_at + '（剩 ' + licState.days_left + ' 天）';
-    else lic.textContent = '无限制';
-  }
+  if (lic) lic.textContent = licState ? '无限制' : '—';
 }
 
 // ── updates & license ────────────────────────────────────────────
@@ -1021,21 +1016,6 @@ function showModal(html, cls) {
   $('#modalMask').hidden = false;
 }
 
-// An expired build offers exactly one button: acknowledging it stops the
-// tunnel and exits, as agreed.
-function showExpired(lic) {
-  showModal(`
-    <h3>软件已到期</h3>
-    <p class="m-warn">${esc(lic.message || '软件已到期，请联系作者续期')}</p>
-    <p class="m-contact">${esc(lic.contact || 'Telegram: @xiaoheok\nEmail: hezhanleiok@gmail.com').replace(/\n/g, '<br>')}</p>
-    <div class="modal-act"><button class="btn primary" id="expOk" type="button">确定</button></div>
-  `, 'expired');
-  $('#expOk').onclick = async () => {
-    $('#expOk').disabled = true;
-    await api('/api/disconnect');
-    await api('/api/window/quit');
-  };
-}
 
 // Updates are applied in place — the download never leaves the app.
 function showUpdateDialog(u) {
@@ -1082,8 +1062,6 @@ async function checkUpdates(manual) {
   licState = r.license || null;
   updState = r.update || null;
   if (page === 'about') renderAbout();
-  // The license window always wins over an update offer.
-  if (licState && licState.expired) { showExpired(licState); return; }
   if (manual) {
     if (updState && (updState.gui_has || updState.core_has)) showUpdateDialog(updState);
     else toast('已是最新版本', 'ok');
