@@ -17,7 +17,6 @@ import (
 	"fmt"
 	"io/fs"
 	"net/http"
-	"os"
 	"os/exec"
 	"strconv"
 	"strings"
@@ -44,11 +43,9 @@ type Bridge struct {
 	onHide   func()
 	lastPing time.Time
 
-	// license/update are resolved at start-up and on demand. They must never
-	// be fetched per snapshot, which would hit the network every second.
+	// license is resolved at start-up and on demand.
 	upMu    sync.Mutex
 	license updater.License
-	update  *updater.UpdateInfo
 }
 
 // Config wires the bridge.
@@ -77,14 +74,14 @@ func New(cfg Config) *Bridge {
 	return b
 }
 
-// startupChecks resolves the license window and looks for updates just after
-// launch. Neither may block start-up: an offline machine simply ends up with
-// an "offline" license and no update offer.
+// startupChecks resolves the license state just after launch. It must not
+// block start-up; there is no update feed anymore, so every launch simply
+// reports the unconditional license.
 func (b *Bridge) startupChecks() {
 	time.Sleep(1500 * time.Millisecond)
 	b.refreshLicense()
-	b.refreshUpdate()
 }
+
 
 // SetOnQuit registers the callback triggered by the UI "exit" action.
 func (b *Bridge) SetOnQuit(fn func()) { b.onQuit = fn }
@@ -173,10 +170,6 @@ func (b *Bridge) Handler() http.Handler {
 	mux.HandleFunc("/api/system/reveal", b.guard(b.revealPath))
 	mux.HandleFunc("/api/window/hide", b.guard(b.windowHide))
 	mux.HandleFunc("/api/window/quit", b.guard(b.windowQuit))
-	mux.HandleFunc("/api/update/check", b.guard(b.updateCheck))
-	// /api/update/gui installs a whole bundle (GUI + core). The core has no
-	// endpoint of its own by design: it can only ever move with the GUI.
-	mux.HandleFunc("/api/update/gui", b.guard(b.updateGUI))
 	mux.HandleFunc("/", b.static)
 	return mux
 }
@@ -646,7 +639,7 @@ func (b *Bridge) windowQuit(w http.ResponseWriter, _ *http.Request) {
 }
 
 // ---------------------------------------------------------------------------
-// updates & license
+// license
 // ---------------------------------------------------------------------------
 
 func (b *Bridge) licenseState() updater.License {
@@ -655,65 +648,11 @@ func (b *Bridge) licenseState() updater.License {
 	return b.license
 }
 
-func (b *Bridge) updateState() *updater.UpdateInfo {
-	b.upMu.Lock()
-	defer b.upMu.Unlock()
-	return b.update
-}
-
 func (b *Bridge) refreshLicense() {
 	lic := updater.LicenseStatus()
 	b.upMu.Lock()
 	b.license = lic
 	b.upMu.Unlock()
-}
-
-func (b *Bridge) refreshUpdate() *updater.UpdateInfo {
-	info := updater.Check(b.version, b.app.Core.Version())
-	b.upMu.Lock()
-	b.update = info
-	b.upMu.Unlock()
-	return info
-}
-
-// updateCheck serves both the start-up probe and the manual button.
-func (b *Bridge) updateCheck(w http.ResponseWriter, _ *http.Request) {
-	b.refreshLicense()
-	info := b.refreshUpdate()
-	writeJSON(w, http.StatusOK, map[string]any{
-		"license": b.licenseState(),
-		"update":  info,
-	})
-}
-
-// updateGUI installs a release bundle — GUI and its bundled core swapped in
-// together, then relaunched. The browser is never opened, and the core is
-// never updated separately.
-func (b *Bridge) updateGUI(w http.ResponseWriter, _ *http.Request) {
-	info := b.updateState()
-	if info == nil || !info.GUIHas || info.GUIURL == "" {
-		writeJSON(w, http.StatusOK, map[string]any{"ok": false, "error": "没有可用的更新"})
-		return
-	}
-	exe, err := os.Executable()
-	if err != nil {
-		writeJSON(w, http.StatusOK, map[string]any{"ok": false, "error": err.Error()})
-		return
-	}
-	if err := updater.ApplyBundle(info.GUIURL, exe, b.app.Core.Path()); err != nil {
-		writeJSON(w, http.StatusOK, map[string]any{"ok": false, "error": err.Error()})
-		return
-	}
-	logx.Infof("[update] bundle %s staged; swapping GUI and core together", info.GUIVer)
-	// The core keeps its own exe open, so it must let go before the batch
-	// script can move the new binary in.
-	if err := b.app.Core.Stop(); err != nil {
-		logx.Warnf("[update] stop core: %v", err)
-	}
-	if b.onQuit != nil {
-		go b.onQuit()
-	}
-	writeJSON(w, http.StatusOK, map[string]any{"ok": true})
 }
 
 // ---------------------------------------------------------------------------

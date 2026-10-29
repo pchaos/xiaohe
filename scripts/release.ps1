@@ -88,9 +88,8 @@ Xiaohe $Version
 Xiaohe
 Copyright (c) xiaohe
 
-本客户端（GUI）由 xiaohe 开发并发布，采用试用授权：自首次启动起可免费
-试用 7 天，到期后软件会提示续期，授权状态与到期时间由项目仓库中的
-version.json 远程控制。
+本客户端（GUI）由 xiaohe 开发并发布，**无试用限制**：不设试用期、
+无到期时间，客户端不读取远程授权清单。
 
 第三方组件
   - Aether Core（CluvexStudio）：本软件内置并随包分发其官方核心二进制文件
@@ -235,7 +234,7 @@ $Version
     # Splatting so the proxy key is only present when one is configured -
     # passing -Proxy $null is an error.
     $post = @{
-        Uri         = "https://api.github.com/repos/hezhanleiok/aether/releases"
+        Uri         = "https://api.github.com/repos/pchaos/xiaohe/releases"
         Method      = 'Post'
         Headers     = $hdr
         ContentType = "application/json; charset=utf-8"
@@ -247,7 +246,7 @@ $Version
     foreach ($f in @((Split-Path $zip -Leaf), (Split-Path $setup -Leaf), "SHA256SUMS.txt")) {
         $bytes = [System.IO.File]::ReadAllBytes((Join-Path $build $f))
         $put = @{
-            Uri         = "https://uploads.github.com/repos/hezhanleiok/aether/releases/$($rel.id)/assets?name=$f"
+            Uri         = "https://uploads.github.com/repos/pchaos/xiaohe/releases/$($rel.id)/assets?name=$f"
             Method      = 'Post'
             Headers     = $hdr
             ContentType = "application/octet-stream"

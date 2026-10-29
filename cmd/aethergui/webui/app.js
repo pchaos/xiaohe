@@ -995,80 +995,11 @@ function renderAbout() {
   if (lic) lic.textContent = licState ? '无限制' : '—';
 }
 
-// ── updates & license ────────────────────────────────────────────
-// Both the license window and the update feed live in version.json in the
-// publishing repo, so they can be retuned without shipping a new build.
-let licState = null;
-let updState = null;
 
-const guiVer = () => 'v' + (S.version.gui || '');
-const coreVer = () => (S.version.core || '—').split('\n')[0];
-
-function closeModal() {
-  $('#modalMask').hidden = true;
-  $('#modalBox').innerHTML = '';
-}
-
-function showModal(html, cls) {
-  const box = $('#modalBox');
-  box.className = 'modal' + (cls ? ' ' + cls : '');
-  box.innerHTML = html;
-  $('#modalMask').hidden = false;
-}
-
-
-// Updates are applied in place — the download never leaves the app.
-function showUpdateDialog(u) {
-  const notes = [u.gui_notes, u.core_notes].filter(Boolean).join('\n');
-  showModal(`
-    <h3>检查更新</h3>
-    <div class="up-row">
-      <span class="up-info">
-        <b>更新包（GUI + 核心）</b>
-        <small>${guiVer()}${u.gui_has ? ' → ' + (u.gui_version || '') : ''}</small>
-      </span>
-      <span class="up-badge ${u.gui_has ? 'new' : ''}">${u.gui_has ? '有新版本' : '已是最新'}</span>
-    </div>
-    <div class="up-row">
-      <span class="up-info">
-        <b>包内核心版本</b>
-        <small>${u.core_version || '—'}${u.gui_has ? '（随包一起更新）' : ''}</small>
-      </span>
-      <span class="up-badge">随 GUI 同步</span>
-    </div>
-    ${notes ? `<div class="up-notes">${esc(notes)}</div>` : ''}
-    <div class="modal-act">
-      <button class="btn" id="upClose" type="button">关闭</button>
-      ${u.gui_has ? '<button class="btn primary" id="upApply" type="button">立即更新</button>' : ''}
-    </div>
-  `);
-  $('#upClose').onclick = closeModal;
-  const apply = $('#upApply');
-  if (apply) {
-    apply.onclick = async () => {
-      apply.disabled = true;
-      apply.textContent = '正在下载并更新…';
-      await api('/api/update/gui');
-    };
-  }
-}
-
-async function checkUpdates(manual) {
-  const r = await api('/api/update/check');
-  if (!r) {
-    if (manual) toast('检查更新失败，请检查网络连接', 'err');
-    return;
-  }
-  licState = r.license || null;
-  updState = r.update || null;
-  if (page === 'about') renderAbout();
-  if (manual) {
-    if (updState && (updState.gui_has || updState.core_has)) showUpdateDialog(updState);
-    else toast('已是最新版本', 'ok');
-  } else if (updState && (updState.gui_has || updState.core_has)) {
-    toast('发现新版本，可在「关于」页更新', 'info');
-  }
-}
+// Updates were removed: Xiaohe never downloads GUI or core binaries from a
+// third-party address at runtime. The core is replaced manually (swap
+// core-bin/aether.exe, then press "检测核心").
+let licState = { days_left: -1 }; // unconditional license
 
 // ── misc ────────────────────────────────────────────────────────
 function esc(s) { return String(s == null ? '' : s).replace(/[&<>"]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c])); }
@@ -1155,7 +1086,6 @@ function bind() {
     try { await navigator.clipboard.writeText(text); toast(tx('copied'), 'ok'); } catch (_) { toast('clipboard blocked', 'err'); }
   };
 
-  $('#abCheckUpdate').onclick = () => checkUpdates(true);
   $$('[data-url]').forEach((b) => { b.onclick = () => api('/api/system/open', { url: b.dataset.url }); });
 
   window.addEventListener('resize', () => drawChart());
@@ -1202,7 +1132,6 @@ window.addEventListener('unhandledrejection', (e) => {
   applySnapshot(snap);
   go('home');
   connectSSE();
-  checkUpdates(false); // start-up probe: license window first, then updates
 })();
 
 })();
