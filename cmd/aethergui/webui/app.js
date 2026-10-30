@@ -662,6 +662,13 @@ function hexA(hex, a) {
 }
 
 // ── nodes ───────────────────────────────────────────────────────
+// nodeUntested reports whether a node has never been through a latency sweep.
+// The backend serializes time.Time zero as "0001-01-01T00:00:00Z"; a node that
+// was tested (even if the sweep failed) carries a real lastTest, so its '—'
+// means "unreachable" rather than "not measured yet".
+function nodeUntested(n) {
+  return !n.lastTest || n.lastTest === '0001-01-01T00:00:00Z';
+}
 function renderNodes() {
   const tb = $('#nodeTable tbody');
   if (!tb) return;
@@ -681,8 +688,8 @@ function renderNodes() {
       `<td><div class="cell-main">${flagHTML(n.flag)}<div><b>${esc(name)}</b><small class="mono">${n.status === 'Connected' ? tx('nodeConnected') : esc(n.colo || n.label || '')}</small></div></div></td>` +
       `<td class="mono">${n.ip}</td>` +
       `<td class="mono">${n.port}</td>` +
-      `<td class="ms q${q}">${n.latencyMs > 0 ? n.latencyMs + ' ms' : '—'}</td>` +
-      `<td class="mono">${n.speedBps > 0 ? fmtSpeed(n.speedBps) : '—'}</td>` +
+      `<td class="ms q${q}">${n.latencyMs > 0 ? n.latencyMs + ' ms' : nodeUntested(n) ? tx('neverTested') : '—'}</td>` +
+      `<td class="mono">${n.speedBps > 0 ? fmtSpeed(n.speedBps) : nodeUntested(n) ? tx('neverTested') : '—'}</td>` +
       `<td class="mono">${n.exitIP ? esc(n.exitCountry || '') + ' ' + n.exitIP : '—'}</td>` +
       `<td><span class="badge ${n.status === 'Available' ? 'ok' : n.status === 'Connected' ? 'live' : n.status === 'Testing' ? 'warn' : 'bad'}">${badgeText(n.status)}</span></td>` +
       `<td><button class="row-act" data-id="${n.id}">${S.activeNode === n.id ? tx('selected') : tx('select')}</button></td>`;
