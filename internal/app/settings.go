@@ -27,6 +27,7 @@ func (a *App) SaveSettings(s config.Settings) error {
 	if err := config.Save(s); err != nil {
 		return err
 	}
+	appRulesApply := appRulesChanged(a.Settings, s)
 	a.Settings = s
 	logx.SetLevel(s.LogLevel)
 	if s.AutoStart {
@@ -39,6 +40,9 @@ func (a *App) SaveSettings(s config.Settings) error {
 		}
 	}
 	a.notifyCore()
+	if appRulesApply {
+		a.requestAppRulesApply(s)
+	}
 	return nil
 }
 

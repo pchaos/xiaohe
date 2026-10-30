@@ -165,8 +165,13 @@ type Settings struct {
 	// Split rules (user-controlled; never auto-generated)
 	SplitBlock  []string `json:"split_block"`  // never reach the network
 	SplitDirect []string `json:"split_direct"` // bypass the tunnel
-	VpnApps     []string `json:"vpn_apps"`     // processes that must use the tunnel
-	BypassApps  []string `json:"bypass_apps"`  // processes that must bypass it
+	// App rules (per-application firewall control, see
+	// docs/superpowers/specs/2026-10-31-app-rules-design.md). These replace
+	// the never-wired vpn_apps/bypass_apps sketch removed with this feature.
+	AppRulesEnabled bool     `json:"app_rules_enabled"` // master switch; rules persist after disconnect
+	AppRulesStrict  bool     `json:"app_rules_strict"`  // strict: block everything outside the whitelist
+	AppWhitelist    []string `json:"app_whitelist"`     // exe paths, may contain *
+	AppBlacklist    []string `json:"app_blacklist"`     // exe paths, may contain *
 
 	// Core management (paths are owned by the GUI, never hard-coded)
 	CorePath      string   `json:"core_path"`       // explicit core exe/dll; "" = local search

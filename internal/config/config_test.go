@@ -33,6 +33,10 @@ func TestSaveLoadRoundTrip(t *testing.T) {
 	s.Mode = ModeGool
 	s.CachedGateway = "162.159.192.1:2408"
 	s.SplitDirect = []string{"example.com", "private"}
+	s.AppRulesEnabled = true
+	s.AppRulesStrict = true
+	s.AppWhitelist = []string{`C:\Apps\a.exe`, `C:\Apps\*.exe`}
+	s.AppBlacklist = []string{`C:\Apps\evil.exe`}
 	if err := Save(s); err != nil {
 		t.Fatalf("save: %v", err)
 	}
@@ -45,6 +49,9 @@ func TestSaveLoadRoundTrip(t *testing.T) {
 	}
 	if len(got.SplitDirect) != 2 {
 		t.Errorf("split direct len = %d, want 2", len(got.SplitDirect))
+	}
+	if !got.AppRulesEnabled || !got.AppRulesStrict || len(got.AppWhitelist) != 2 || len(got.AppBlacklist) != 1 {
+		t.Errorf("app rules round trip mismatch: %+v", got)
 	}
 	_ = old
 	_ = filepath.Join

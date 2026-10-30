@@ -163,6 +163,7 @@ func (b *Bridge) Handler() http.Handler {
 	mux.HandleFunc("/api/core/restart", b.guard(b.coreRestart))
 	mux.HandleFunc("/api/core/stop", b.guard(b.coreStop))
 	mux.HandleFunc("/api/settings", b.guard(b.settings))
+	mux.HandleFunc("/api/processes", b.guard(b.processes))
 	mux.HandleFunc("/api/logs/clear", b.guard(b.clearLogs))
 	mux.HandleFunc("/api/client-log", b.guard(b.clientLog))
 	mux.HandleFunc("/api/system/open", b.guard(b.openExternal))
@@ -582,6 +583,21 @@ func (b *Bridge) settings(w http.ResponseWriter, r *http.Request) {
 	}
 	logx.Infof("[ui] settings saved")
 	writeJSON(w, http.StatusOK, b.app.Settings)
+}
+
+// processes lists running processes for the app-rules "add from running
+// process" picker.
+func (b *Bridge) processes(w http.ResponseWriter, r *http.Request) {
+	if r.Method != http.MethodGet {
+		writeJSON(w, http.StatusMethodNotAllowed, map[string]any{"error": "GET only"})
+		return
+	}
+	list, err := b.app.ListProcesses()
+	if err != nil {
+		writeJSON(w, http.StatusInternalServerError, map[string]any{"error": err.Error()})
+		return
+	}
+	writeJSON(w, http.StatusOK, list)
 }
 
 // clientLog funnels browser-side diagnostics (viewport size, uncaught errors)

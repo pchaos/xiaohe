@@ -44,6 +44,13 @@ type App struct {
 	// an inner WARP tunnel). Mutually exclusive with nativeWG: StackedWireGuard
 	// picks which one Connect() drives. Same build-tag story as nativeWG.
 	nativeStacked nativeStackedHandle
+	// App rules (per-application firewall). State machine in apprules.go;
+	// Windows seams (netsh apply/clear, process listing) in
+	// apprules_windows.go / apprules_stub.go. appRulesGen implements
+	// latest-wins apply so a burst of settings writes ends on the newest.
+	appRulesMu  sync.Mutex
+	appRules    AppRulesState
+	appRulesGen uint64
 
 	subMu   sync.Mutex
 	onState []func(vpn.State)
@@ -232,6 +239,7 @@ func New() (*App, error) {
 	if err := recoverNativeWGState(); err != nil {
 		logx.Warnf("[wgtun] residue: %v", err)
 	}
+	a.initAppRules()
 	return a, nil
 }
 

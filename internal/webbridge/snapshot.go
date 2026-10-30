@@ -174,9 +174,10 @@ type TrafficInfo struct {
 
 // SystemInfo reports the Windows-side takeovers.
 type SystemInfo struct {
-	SysProxy   bool `json:"sysProxy"`
-	KillSwitch bool `json:"killSwitch"`
-	AutoStart  bool `json:"autoStart"`
+	SysProxy   bool              `json:"sysProxy"`
+	KillSwitch bool              `json:"killSwitch"`
+	AppRules   app.AppRulesState `json:"appRules"`
+	AutoStart  bool              `json:"autoStart"`
 	// NativeResidue is the residue-left-behind prompt from a previous unclean
 	// native-WG exit (empty when clean); the UI shows it and asks for elevation.
 	NativeResidue string `json:"nativeResidue"`
@@ -270,6 +271,7 @@ func (b *Bridge) snapshot() Snapshot {
 		System: SystemInfo{
 			SysProxy:      sysproxy.Taken(),
 			KillSwitch:    killswitch.Enabled(),
+			AppRules:      a.AppRulesSnapshot(),
 			AutoStart:     s.AutoStart,
 			NativeResidue: a.NativeResidue(),
 		},
