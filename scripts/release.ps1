@@ -52,15 +52,25 @@ try {
 
     Copy-Item (Join-Path $build "Xiaohe.exe") (Join-Path $stage "Xiaohe.exe") -Force
     Copy-Item (Join-Path $root "core-bin\aether.exe") (Join-Path $stage "core-bin\aether.exe") -Force
+    # The native WireGuard backend (built with -tags wgtun) loads wintun.dll at
+    # runtime and needs it NEXT TO Xiaohe.exe - this is NOT a static link.
+    # setup-wireguard.ps1 drops it into core-bin\; without it even an elevated
+    # run fails with ERROR_MOD_NOT_FOUND instead of connecting.
+    $wintun = Join-Path $root "core-bin\wintun.dll"
+    if (-not (Test-Path $wintun)) {
+        throw "wintun.dll missing in core-bin\ - run scripts\build.ps1 first (it downloads and places wintun.dll automatically)"
+    }
+    Copy-Item $wintun (Join-Path $stage "wintun.dll") -Force
     # The core ships with its own license: keep the notices at the archive root
     # where a user can actually find them, instead of buried inside the GUI.
     Copy-Item (Join-Path $root "THIRD-PARTY-NOTICES.md") (Join-Path $stage "THIRD-PARTY-NOTICES.md") -Force
     New-Item -ItemType Directory -Force -Path (Join-Path $stage "THIRD-PARTY-LICENSES") | Out-Null
     Copy-Item (Join-Path $root "THIRD-PARTY-LICENSES\*") (Join-Path $stage "THIRD-PARTY-LICENSES") -Recurse -Force
 
-    # Both binaries are pure Go (CGO_ENABLED=0, no `import "C"` anywhere), so
-    # they are statically linked and need no third-party DLLs or runtime files
-    # beside them. Nothing is added here just to make the package look bigger.
+    # Xiaohe.exe and aether.exe are statically linked Go binaries, so they need
+    # no Go runtime DLLs; wintun.dll above is the one deliberate companion DLL
+    # next to the GUI (the native WG adapter driver, fetched by the setup
+    # script). Nothing else is added here just to make the package look bigger.
 
     Write-Utf8 (Join-Path $stage "README.txt") @"
 Xiaohe $Version
@@ -69,6 +79,7 @@ Xiaohe $Version
 
 目录说明
   Xiaohe.exe            图形界面（Go 编写，静态链接，无需额外运行库）
+  wintun.dll            WireGuard 虚拟网卡驱动（必须与 Xiaohe.exe 同目录）
   core-bin\aether.exe   Aether Core，第三方独立进程，由界面调用
   docs\                 项目文档
   LICENSE.txt           本软件授权与第三方声明
@@ -82,6 +93,8 @@ Xiaohe $Version
   - 首次启动会在 %LOCALAPPDATA%\AetherGUI 下保存设置，卸载只需删除该目录。
   - 若本机没有 WebView2 运行时，界面会自动改用 Edge/Chrome 的无边框窗口，
     功能完全一致。
+  - 使用本地 WireGuard 加速时，Windows 会弹出 UAC 提权确认；提权成功后
+    程序会自动以管理员身份重新连接，无需重复操作。
 "@
 
     Write-Utf8 (Join-Path $stage "LICENSE.txt") @"
@@ -154,6 +167,7 @@ $Version
     Write-Host "[3/6] Validate" -ForegroundColor Cyan
     $required = @(
         (Join-Path $stage "Xiaohe.exe"),
+        (Join-Path $stage "wintun.dll"),
         (Join-Path $stage "core-bin\aether.exe"),
         (Join-Path $stage "README.txt"),
         (Join-Path $stage "LICENSE.txt"),

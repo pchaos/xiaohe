@@ -106,6 +106,19 @@ func main() {
 
 	bridge := webbridge.New(webbridge.Config{App: application, Assets: guiFS, Version: Version})
 	bridge.SetOnQuit(requestQuit)
+	// When wintun needs a higher token, the native connect relaunches this
+	// instance as administrator (UAC) and the elevated child re-connects (the
+	// relaunch appends -connect). The parent must exit: it owns no tunnel yet
+	// (Start failed with access-denied, so there is no adapter/routes/DNS to
+	// tear down), and staying alive would double the windows/tray and let two
+	// instances race on the same state file. os.Exit skips application.Close's
+	// deferred cleanup, which is exactly what we want here — there is nothing
+	// to clean on this side, and a partial Close from a connect goroutine could
+	// interfere with the child's takeover.
+	application.OnElevatedRelaunch(func() {
+		logx.Infof("[gui] elevated child launched; exiting parent instance")
+		os.Exit(0)
+	})
 
 	ln, err := net.Listen("tcp", net.JoinHostPort("127.0.0.1", fmt.Sprint(*portFlag)))
 	if err != nil {

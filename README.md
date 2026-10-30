@@ -80,16 +80,25 @@ Xiaohe.exe (Go 外壳)
 
 ## 构建
 
-前置：Go 1.22+。
+前置:Go 1.22+。
 
 ```powershell
-# 1) 放置 Core（本地二进制，来源由你自己决定，脚本不下载任何东西）
+# 1) 放置 Core(本地二进制,来源由你自己决定,脚本不下载任何东西)
 powershell -ExecutionPolicy Bypass -File scripts\setup-core.ps1 -CorePath C:\path\to\aether.exe
 #    或直接复制 aether.exe 到 core-bin\ / exe 同目录
 
-# 2) 构建
+# 2) 一键构建(自动补齐依赖)
 powershell -ExecutionPolicy Bypass -File scripts\build.ps1
 ```
+
+`build.ps1` 会自动判断并按需补齐原生 WireGuard 依赖,无需手动分步:
+
+- `wintun.dll`(虚拟网卡驱动)缺失时自动从 wintun.net 下载并放到 `core-bin\` 与 exe 旁,已存在则跳过;
+- `golang.zx2c4.com/wireguard` 不在 `go.mod` 时自动 `go get` + `go mod vendor`,已存在则跳过。
+
+若网络不通导致下载失败,`scripts\setup-wireguard.ps1`(走代理)可单独手动执行。
+
+> **首次使用本地 WireGuard 加速**:运行时 Windows 会弹出 UAC 提权确认,确认后程序自动以管理员身份重新连接,无需重复操作。
 
 ### 产物结构
 

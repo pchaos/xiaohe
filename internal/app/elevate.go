@@ -33,9 +33,10 @@ func isElevated() bool {
 //
 // The relaunch uses ShellExecuteW("runas"), which makes Windows raise the UAC
 // prompt; the user's choice determines whether the child starts elevated. The
-// elevated child inherits the same command line, so the connect that needed
-// elevation can be retried there (the GUI reconnects on start when the mode
-// asks for it).
+// child inherits the same command line, plus a forced `-connect` (so a connect
+// started from the GUI survives the handoff) and the elevateEnv marker — which
+// must be exported BEFORE the child is spawned, since the child inherits the
+// environment block as it exists at ShellExecute time.
 func maybeElevateForNative() bool {
 	if isElevated() {
 		return false
@@ -60,15 +61,16 @@ func maybeElevateForNative() bool {
 	argstr, _ := windows.UTF16PtrFromString(strings.Join(args, " "))
 	cwd, _ := windows.UTF16PtrFromString(filepath.Dir(exe))
 	logx.Infof("[app] native WireGuard needs admin; relaunching %s as administrator", exe)
+	// The elevated child must know it is a child of an elevation request, so it
+	// does not prompt again on a second connect. Set BEFORE ShellExecute: the
+	// child inherits the environment block as it is at spawn time.
+	_ = os.Setenv(elevateEnv, "1")
 	// ShellExecute returns an error when the user declines the UAC prompt
-	// (ERROR_CANCELLED), which is fine — we simply keep the un-elevated session.
+	// (ERROR_CANCELLED), which is fine - we simply keep the un-elevated session.
 	if err := windows.ShellExecute(0, verb, file, argstr, cwd, windows.SW_SHOWNORMAL); err != nil {
 		logx.Warnf("[app] elevation relaunch not accepted (%v); staying un-elevated", err)
 		return false
 	}
-	// The elevated child must know it is a child of an elevation request, so it
-	// does not prompt again on a second connect.
-	_ = os.Setenv(elevateEnv, "1")
 	return true
 }
 
@@ -91,9 +93,23 @@ func isElevationError(err error) bool {
 
 // relaunchArgs rebuilds the current command line for the elevated child. The
 // GUI keeps the same args (mode, port, connect) so an autostart `-connect` or a
-// pinned `-port` survives the relaunch. A one-shot probe mode is never
-// relaunched by the caller anyway, but passing the args through is still
-// correct: the child is the same program with the same intent.
+// pinned `-port` survives the relaunch.
+//
+// A `-connect` is forced in: without it, a connect started from the GUI (which
+// passes no flags) would relaunch into a child that never connects, leaving the
+// user with two windows and a session that quietly never started. The flag is
+// idempotent, so a child that already had it keeps it.
 func relaunchArgs() []string {
-	return os.Args[1:]
+	args := append([]string(nil), os.Args[1:]...)
+	hasConnect := false
+	for _, a := range args {
+		if a == "-connect" || a == "--connect" {
+			hasConnect = true
+			break
+		}
+	}
+	if !hasConnect {
+		args = append(args, "-connect")
+	}
+	return args
 }

@@ -49,6 +49,13 @@ type App struct {
 	onState []func(vpn.State)
 	onNodes []func()
 	onCore  []func()
+	// onElevatedRelaunch is invoked when connectNativeWG/connectNativeStacked
+	// relaunch the process as administrator (UAC) because wintun needs a higher
+	// token. The GUI wires it to quit this instance: the parent process must not
+	// keep living next to the elevated child (two windows, two tunnels, two
+	// instances racing over the same state file). It is set in cmd/aethergui
+	// main(); Connect() itself must never os.Exit() from a library goroutine.
+	onElevatedRelaunch func()
 
 	// connecting is a CAS guard: set true at the entry of Connect() and reset
 	// (false) on every exit via a deferred Store. It lets a second concurrent
@@ -275,6 +282,21 @@ func (a *App) OnCore(fn func()) {
 	a.subMu.Lock()
 	a.onCore = append(a.onCore, fn)
 	a.subMu.Unlock()
+}
+
+// OnElevatedRelaunch registers the callback invoked when a native-WG connect
+// relaunches this process as administrator (UAC). The GUI uses it to quit the
+// un-elevated instance so the elevated child takes over cleanly.
+func (a *App) OnElevatedRelaunch(fn func()) {
+	a.onElevatedRelaunch = fn
+}
+
+// fireElevatedRelaunch runs the registered elevated-relaunch callback, if any.
+// Called from the wgtun connect paths only (single and stacked).
+func (a *App) fireElevatedRelaunch() {
+	if a.onElevatedRelaunch != nil {
+		a.onElevatedRelaunch()
+	}
 }
 
 // notifyCore fans out to core listeners.

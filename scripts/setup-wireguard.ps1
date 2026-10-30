@@ -4,6 +4,11 @@
 #   wireguard-go  -> golang.zx2c4.com/wireguard   (userspace WG, ~Gbps class)
 #   wintun.dll    -> the TUN adapter driver
 #
+# NOTE: build.ps1 already auto-provisions BOTH of these (it skips whatever is
+# already on disk), so for a normal build you only need build.ps1. This script
+# exists for the manual / explicit case: re-fetching the driver after it was
+# deleted, or bumping the dependency without touching the build flow.
+#
 # Run once, from an administrator PowerShell with the proxy already up:
 #
 #   powershell -ExecutionPolicy Bypass -File scripts\setup-wireguard.ps1

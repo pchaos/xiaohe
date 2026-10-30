@@ -71,6 +71,20 @@ func (a *App) useNativeWG(s config.Settings) bool {
 	return vpn.NativeExitOnly(s) != ""
 }
 
+// elevationHandoff detects a wintun access-denied (the kernel driver needs an
+// elevated token) and, when the process can relaunch itself as administrator,
+// fires the GUI's elevated-relaunch callback and returns the handoff error.
+// It returns nil when err is not an elevation error or elevation was declined,
+// so the caller keeps its normal failure path.
+func (a *App) elevationHandoff(err error, mode config.Mode) error {
+	if !isElevationError(err) || !maybeElevateForNative() {
+		return nil
+	}
+	a.VPN.SetNativeState(vpn.StatusFailed, mode, "需要管理员权限，正在以管理员身份重新启动…")
+	a.fireElevatedRelaunch()
+	return fmt.Errorf("native WireGuard needs admin; relaunched elevated: %w", err)
+}
+
 // nativeSessionAlive reports whether any native backend session is up. The
 // caller must hold connMu. Used by CancelConnect's fallback: a native session
 // in failover has no connect context to cancel, so a /api/cancel press means
@@ -167,12 +181,11 @@ func (a *App) connectNativeWG(ctx context.Context, s config.Settings) error {
 		}
 	}
 	if err := m.Start(ctx, cfg, nil); err != nil {
-		// The wintun kernel driver needs an elevated token. A non-admin user
-		// gets ERROR_ACCESS_DENIED here; relaunch as administrator (UAC prompt)
+		// The wintun kernel driver needs an elevated token; a non-admin user
+		// gets ERROR_ACCESS_DENIED here. Relaunch as administrator (UAC prompt)
 		// instead of leaving a dead connect on a hard-to-read error.
-		if isElevationError(err) && maybeElevateForNative() {
-			a.VPN.SetNativeState(vpn.StatusFailed, s.Mode, "需要管理员权限，正在以管理员身份重新启动…")
-			return fmt.Errorf("native WireGuard needs admin; relaunched elevated: %w", err)
+		if relErr := a.elevationHandoff(err, s.Mode); relErr != nil {
+			return relErr
 		}
 		a.VPN.SetNativeState(vpn.StatusFailed, s.Mode, err.Error())
 		return err
@@ -678,6 +691,9 @@ func (a *App) connectNativeStacked(ctx context.Context, s config.Settings) error
 	}
 	st, err := wgtun.NewStackedTunnel(ctx, outerCfg, innerCfg, onPhase)
 	if err != nil {
+		if relErr := a.elevationHandoff(err, s.Mode); relErr != nil {
+			return relErr
+		}
 		a.VPN.SetNativeState(vpn.StatusFailed, s.Mode, err.Error())
 		return err
 	}
