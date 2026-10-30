@@ -807,11 +807,13 @@ function renderAppRules() {
   $('#btnWhitePick').onclick = () => pickProcesses((paths) => {
     white.value = white.value.trim() ? white.value.trimEnd() + '\n' + paths.join('\n') : paths.join('\n');
   });
-  $('#btnAppPresets').onclick = () => {
+  $('#btnAppPresets').onclick = async () => {
+    const r = await api('/api/apprules/exists', { paths: APP_PRESETS });
+    const existing = (r && r.existing) || [];
     const cur = new Set(parseLines(white.value));
-    const add = APP_PRESETS.filter((p) => !cur.has(p));
+    const add = existing.filter((p) => !cur.has(p));
     white.value = [white.value.trim(), ...add].filter(Boolean).join('\n');
-    toast(lang === 'zh-CN' ? `已加入 ${add.length} 个常用应用路径（不存在的路径无副作用）` : `Added ${add.length} common app paths (missing paths are inert)`, 'info');
+    toast(lang === 'zh-CN' ? `已加入 ${add.length} 个已安装的常用应用` : `Added ${add.length} installed common apps`, 'info');
   };
   $('#saveAppRules').onclick = () => patch({ app_whitelist: parseLines(white.value), app_blacklist: parseLines(black.value) });
 }

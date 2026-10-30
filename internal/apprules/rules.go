@@ -13,6 +13,7 @@ package apprules
 
 import (
 	"fmt"
+	"os"
 	"path/filepath"
 	"sort"
 	"strings"
@@ -152,6 +153,20 @@ func dedupe(paths []string) []string {
 		}
 		seen[p] = struct{}{}
 		out = append(out, p)
+	}
+	return out
+}
+
+// ExistingOnly drops paths that do not exist on disk, so preset buttons never
+// pollute a list with phantom entries. Windows-style separators work natively
+// on Windows; wildcard patterns are not expanded here (ExpandWildcards handles
+// that at rule-derivation time).
+func ExistingOnly(paths []string) []string {
+	out := make([]string, 0, len(paths))
+	for _, p := range paths {
+		if _, err := os.Stat(p); err == nil {
+			out = append(out, p)
+		}
 	}
 	return out
 }

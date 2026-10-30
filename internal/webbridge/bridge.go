@@ -24,6 +24,7 @@ import (
 	"time"
 
 	"github.com/aethergui/aethergui/internal/app"
+	"github.com/aethergui/aethergui/internal/apprules"
 	"github.com/aethergui/aethergui/internal/config"
 	"github.com/aethergui/aethergui/internal/logx"
 	"github.com/aethergui/aethergui/internal/updater"
@@ -164,6 +165,7 @@ func (b *Bridge) Handler() http.Handler {
 	mux.HandleFunc("/api/core/stop", b.guard(b.coreStop))
 	mux.HandleFunc("/api/settings", b.guard(b.settings))
 	mux.HandleFunc("/api/processes", b.guard(b.processes))
+	mux.HandleFunc("/api/apprules/exists", b.guard(b.appRulesExists))
 	mux.HandleFunc("/api/logs/clear", b.guard(b.clearLogs))
 	mux.HandleFunc("/api/client-log", b.guard(b.clientLog))
 	mux.HandleFunc("/api/system/open", b.guard(b.openExternal))
@@ -598,6 +600,18 @@ func (b *Bridge) processes(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	writeJSON(w, http.StatusOK, list)
+}
+
+// appRulesExists filters paths down to those present on disk; the UI uses it
+// for the "add common apps" preset so phantom entries never reach a list.
+func (b *Bridge) appRulesExists(w http.ResponseWriter, r *http.Request) {
+	var body struct {
+		Paths []string `json:"paths"`
+	}
+	if !decode(w, r, &body) {
+		return
+	}
+	writeJSON(w, http.StatusOK, map[string]any{"existing": apprules.ExistingOnly(body.Paths)})
 }
 
 // clientLog funnels browser-side diagnostics (viewport size, uncaught errors)

@@ -1,6 +1,7 @@
 package app
 
 import (
+	"errors"
 	"os"
 
 	"github.com/aethergui/aethergui/internal/apprules"
@@ -26,6 +27,10 @@ const (
 	appRulesNotElevated = "not_elevated"
 	appRulesFailed      = "failed"
 )
+
+// errAppRulesUnsupported marks the firewall feature as unavailable off
+// Windows; the state machine reports it as a failed state.
+var errAppRulesUnsupported = errors.New("应用规则仅在 Windows 上可用")
 
 // AppRulesSnapshot returns the current app-rules state for the UI snapshot.
 func (a *App) AppRulesSnapshot() AppRulesState {
@@ -84,6 +89,10 @@ func (a *App) syncAppRules(s config.Settings, gen uint64) {
 			return
 		}
 		a.setAppRulesState(gen, AppRulesState{State: appRulesOff})
+		return
+	}
+	if !appRulesPlatformSupported() {
+		a.setAppRulesState(gen, AppRulesState{State: appRulesFailed, Error: errAppRulesUnsupported.Error()})
 		return
 	}
 
@@ -151,7 +160,7 @@ func (a *App) setAppRulesState(gen uint64, st AppRulesState) {
 func (a *App) initAppRules() {
 	if !a.Settings.AppRulesEnabled {
 		go func() {
-			if err := clearStaleAppRules(); err != nil {
+			if err := clearAppRules(); err != nil {
 				logx.Warnf("[app] stale app rules cleanup failed: %v", err)
 			}
 		}()

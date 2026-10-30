@@ -53,9 +53,12 @@
 - **不造 Backend 抽象接口**：一期直接 `internal/apprules` 包 + 包内导出函数；
   若将来升级 fwpmu（BFE 用户态 API，事务原子、毫秒级），只是包内实现替换，
   包边界即接缝。
-- **清理时机**：只在 `enabled=false` 的 `Clear()` 里清理 `AE-App-*`（含崩溃
-  残留）。**不做启动时无条件清理**——常驻语义下 netsh 规则持久化，无条件
-  清理会让崩溃/重启后的「禁网」失效而用户不知情。
+- **清理时机**：`Apply` 先整组清除（含崩溃残留）再逐条添加，重建天然幂等；
+  `Clear()`（`enabled=false` 时调用）同样整组删除。**不做启动时无条件清理**
+  ——常驻语义下 netsh 规则持久化，无条件清理会让崩溃/重启后的「禁网」失效
+  而用户不知情。整组清除按规则名过滤（PowerShell `Get-NetFirewallRule -Name
+  'AE-App-*'`），语言无关，不解析 netsh 本地化输出；这是与 killswitch 纯
+  netsh 风格（只需删 5 条固定名）的唯一偏离
 
 ## 数据模型（`internal/config` Settings 新增 4 字段）
 
@@ -86,11 +89,9 @@
 
 ### netsh 后端（`go:build windows`）
 
-- `Apply(rules []Rule) error`：逐条 `netsh advfirewall firewall add rule`；
-  中途失败 → 删除组内已加规则后返回错误。
-- `Clear() error`：删除 `AE-App-*` 全组（`enabled=false` 时调用，同时消化
-  崩溃残留）。
-- `Applied() bool`：本次会话是否已应用（内存态）。
+- `Apply(rules []Rule) error`：先整组清除（含崩溃残留）再逐条
+  `netsh advfirewall firewall add rule`；中途失败 → 整组回滚后返回错误。
+- `Clear() error`：删除全部 `AE-App-*`（含崩溃残留；`enabled=false` 时调用）。
 
 ### 进程枚举（`go:build windows`，`processes_windows.go`）
 

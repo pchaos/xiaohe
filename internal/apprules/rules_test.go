@@ -239,3 +239,38 @@ func writeFile(t *testing.T, path string) error {
 	t.Helper()
 	return os.WriteFile(path, []byte("x"), 0o644)
 }
+
+func TestRuleArgsEmbeddedQuote(t *testing.T) {
+	r := Rule{Name: "AE-App-0", Action: "block", Program: `C:\Apps\We"ird\app.exe`}
+	for _, a := range r.Args() {
+		if a == `program=C:\Apps\We"ird\app.exe` {
+			return
+		}
+	}
+	t.Fatalf("embedded quote must pass as one literal token: %v", r.Args())
+}
+
+func TestDeriveCapLimitWhitelist(t *testing.T) {
+	many := make([]string, 0, MaxListLen+1)
+	for i := range MaxListLen + 1 {
+		many = append(many, "C:\\Apps\\app"+strconv.Itoa(i)+".exe")
+	}
+	if _, err := Derive(Options{Strict: true, Whitelist: many}); err == nil {
+		t.Fatal("whitelist over the cap must error")
+	}
+	if _, err := Derive(Options{Strict: true, Whitelist: many[:MaxListLen]}); err != nil {
+		t.Fatalf("whitelist at the cap must pass: %v", err)
+	}
+}
+
+func TestExistingOnly(t *testing.T) {
+	dir := t.TempDir()
+	f := filepath.Join(dir, "real.exe")
+	if err := writeFile(t, f); err != nil {
+		t.Fatal(err)
+	}
+	got := ExistingOnly([]string{f, filepath.Join(dir, "missing.exe")})
+	if len(got) != 1 || got[0] != f {
+		t.Fatalf("only existing paths must survive: %v", got)
+	}
+}
