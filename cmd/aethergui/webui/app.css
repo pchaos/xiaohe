@@ -631,3 +631,10 @@ textarea { min-height: 132px; resize: vertical; font-family: var(--mono); font-s
 @keyframes fade { from { opacity: 0 } to { opacity: 1 } }
 @keyframes pop { from { opacity: 0; transform: translateY(10px) scale(.97) } to { opacity: 1; transform: none } }
 
+
+.hint.warn { color: var(--warn); }
+.proc-list {
+  max-height: 46vh; overflow: auto; margin-top: 4px;
+  border: 1px solid var(--line-soft); border-radius: var(--r-md);
+  padding: 2px 14px; background: var(--panel-2);
+}

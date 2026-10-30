@@ -746,6 +746,109 @@ function renderSplit() {
       residueEl.setAttribute('hidden', '');
     }
   }
+  renderAppRules();
+}
+// ── app rules (应用规则) ────────────────────────────────────────
+const APP_PRESETS = [
+  'C:\\Program Files\\Google\\Chrome\\Application\\chrome.exe',
+  'C:\\Program Files (x86)\\Google\\Chrome\\Application\\chrome.exe',
+  'C:\\Program Files (x86)\\Microsoft\\Edge\\Application\\msedge.exe',
+  'C:\\Program Files\\Mozilla Firefox\\firefox.exe',
+  'C:\\Program Files (x86)\\Mozilla Firefox\\firefox.exe',
+  'C:\\Program Files\\Tencent\\WeChat\\WeChat.exe',
+  'C:\\Program Files (x86)\\Tencent\\WeChat\\WeChat.exe',
+  'C:\\Program Files (x86)\\Tencent\\QQ\\Bin\\QQ.exe',
+  'C:\\Program Files\\Tencent\\QQNT\\QQ.exe',
+  'C:\\Program Files (x86)\\Steam\\steam.exe',
+];
+
+function parseLines(v) {
+  return (v || '').split(/\r?\n/).map((s) => s.trim()).filter(Boolean);
+}
+
+function renderAppRules() {
+  const tag = $('#appRulesTag'), enabled = $('#appRulesEnabled'), strict = $('#appRulesStrict'),
+    lineEl = $('#appRulesStateLine'), warnEl = $('#appRulesWarn'),
+    black = $('#editAppBlack'), white = $('#editAppWhite');
+  if (!tag || !enabled) return;
+  const st = S.system && S.system.appRules;
+  const settings = S.settings || {};
+
+  if (document.activeElement !== enabled) enabled.checked = !!settings.app_rules_enabled;
+  if (document.activeElement !== strict) strict.checked = !!settings.app_rules_strict;
+  if (document.activeElement !== black) black.value = (settings.app_blacklist || []).join('\n');
+  if (document.activeElement !== white) white.value = (settings.app_whitelist || []).join('\n');
+
+  const map = {
+    off: ['关闭', ''],
+    pending: ['应用中…', ''],
+    applied: ['已生效', ''],
+    not_elevated: ['未生效', lang === 'zh-CN'
+      ? '未生效：请以管理员身份运行 Xiaohe 后重试。现有防火墙规则仍按上次配置生效。'
+      : 'Not applied: run Xiaohe as administrator. Existing firewall rules still enforce the last configuration.'],
+    failed: ['失败', (st && st.error) || ''],
+  };
+  const m = (st && map[st.state]) || map.off;
+  tag.textContent = m[0];
+  if (m[1]) { lineEl.textContent = m[1]; lineEl.removeAttribute('hidden'); }
+  else lineEl.setAttribute('hidden', '');
+  if (warnEl) {
+    if (settings.app_rules_enabled && settings.app_rules_strict) warnEl.removeAttribute('hidden');
+    else warnEl.setAttribute('hidden', '');
+  }
+
+  if (tag.dataset.built) return;
+  tag.dataset.built = '1';
+  enabled.onchange = (e) => patch({ app_rules_enabled: e.target.checked });
+  strict.onchange = (e) => patch({ app_rules_strict: e.target.checked });
+  $('#btnBlackPick').onclick = () => pickProcesses((paths) => {
+    black.value = black.value.trim() ? black.value.trimEnd() + '\n' + paths.join('\n') : paths.join('\n');
+  });
+  $('#btnWhitePick').onclick = () => pickProcesses((paths) => {
+    white.value = white.value.trim() ? white.value.trimEnd() + '\n' + paths.join('\n') : paths.join('\n');
+  });
+  $('#btnAppPresets').onclick = () => {
+    const cur = new Set(parseLines(white.value));
+    const add = APP_PRESETS.filter((p) => !cur.has(p));
+    white.value = [white.value.trim(), ...add].filter(Boolean).join('\n');
+    toast(lang === 'zh-CN' ? `已加入 ${add.length} 个常用应用路径（不存在的路径无副作用）` : `Added ${add.length} common app paths (missing paths are inert)`, 'info');
+  };
+  $('#saveAppRules').onclick = () => patch({ app_whitelist: parseLines(white.value), app_blacklist: parseLines(black.value) });
+}
+
+function openModal(html) {
+  $('#modalBox').innerHTML = html;
+  $('#modalMask').removeAttribute('hidden');
+  $('#modalMask').onclick = (e) => { if (e.target === $('#modalMask')) closeModal(); };
+}
+
+function closeModal() {
+  $('#modalMask').setAttribute('hidden', '');
+}
+
+async function pickProcesses(apply) {
+  const r = await api('/api/processes');
+  if (!Array.isArray(r) || !r.length) {
+    toast(lang === 'zh-CN' ? '没有可列出的进程' : 'No processes available', 'info');
+    return;
+  }
+  const rows = r.map((p) =>
+    `<label class="up-row"><span class="up-info"><b>${esc(p.name)}</b><small class="mono">${esc(p.path)}</small></span><input type="checkbox" data-path="${esc(p.path)}"></label>`
+  ).join('');
+  openModal(
+    `<h3>${lang === 'zh-CN' ? '从运行进程添加' : 'Add from running processes'}</h3>` +
+    `<div class="proc-list">${rows}</div>` +
+    `<div class="modal-act">` +
+    `<button class="btn small" id="procCancel" type="button">${lang === 'zh-CN' ? '取消' : 'Cancel'}</button>` +
+    `<button class="btn small primary" id="procOk" type="button">${lang === 'zh-CN' ? '确定' : 'Add'}</button>` +
+    `</div>`
+  );
+  $('#procCancel').onclick = closeModal;
+  $('#procOk').onclick = () => {
+    const paths = Array.from(document.querySelectorAll('#modalBox input[type=checkbox]:checked')).map((c) => c.dataset.path);
+    closeModal();
+    if (paths.length) apply(paths);
+  };
 }
 
 // ── rules ───────────────────────────────────────────────────────

@@ -262,6 +262,30 @@
               <button class="btn small" id="btnKsToggle" type="button">切换 Kill Switch</button>
             </div>
           </div>
+          <div class="card">
+            <div class="card-head">
+              <span class="title"><svg class="mini danger"><use href="#i-lock"/></svg>应用规则</span>
+              <span class="tag" id="appRulesTag">关闭</span>
+            </div>
+            <div class="kv-list wide">
+              <div class="kv"><span>总开关（常驻：断开连接后仍生效）</span><label class="switch"><input type="checkbox" id="appRulesEnabled"><i></i></label></div>
+              <div class="kv"><span>严格模式（名单外全部禁网）</span><label class="switch"><input type="checkbox" id="appRulesStrict"><i></i></label></div>
+            </div>
+            <p class="hint" id="appRulesStateLine" hidden></p>
+            <p class="hint warn" id="appRulesWarn" hidden>严格模式会阻断系统服务的联网：把系统关键进程加入白名单，否则系统更新等服务将无法联网。</p>
+            <p class="hint">黑名单（禁止联网，每行一个程序路径，支持通配符 *）</p>
+            <textarea id="editAppBlack" spellcheck="false" placeholder="例如：C:\Program Files\App\app.exe&#10;C:\Games\*\*.exe"></textarea>
+            <p class="hint">白名单（严格模式放行，每行一个程序路径，支持通配符 *）</p>
+            <textarea id="editAppWhite" spellcheck="false" placeholder="例如：C:\Program Files\Google\Chrome\Application\chrome.exe"></textarea>
+            <div class="head-actions mt">
+              <button class="btn small" id="btnBlackPick" type="button"><svg class="mini"><use href="#i-search"/></svg>黑名单：从运行进程添加</button>
+              <button class="btn small" id="btnWhitePick" type="button"><svg class="mini"><use href="#i-search"/></svg>白名单：从运行进程添加</button>
+            </div>
+            <div class="head-actions mt end">
+              <button class="btn small" id="btnAppPresets" type="button">白名单：加入常用应用</button>
+              <button class="btn small primary" id="saveAppRules" type="button"><svg class="mini"><use href="#i-check"/></svg>保存应用规则</button>
+            </div>
+          </div>
         </div>
       </section>
 

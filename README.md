@@ -72,6 +72,10 @@ Xiaohe.exe (Go 外壳)
 
 - **10 种模式**：全局 VPN / 全局代理 / 分流 / 直连 / WARP / Gool / WireGuard / MASQUE H2 / MASQUE H3 / 自动
 - **Windows 接管**：系统代理（注册表快照/恢复）、PAC 分流（用户规则）、LAN 例外、Kill Switch（防火墙规则组）
+- **应用规则（程序级禁网）**：按程序路径白/黑名单控制联网。黑名单=禁该程序
+  联网；白名单双模式（严格=名单外全禁，基线放行回环/LAN/核心/自身）；常驻
+  生效（与连接无关，断开后仍生效）；需管理员运行；支持通配符、从运行进程
+  添加、常用应用预设（设计见 docs/superpowers/specs/2026-10-31-app-rules-design.md）
 - **IPv4/IPv6/双栈**、自定义 DNS、DoH 端点、DNS 防泄漏、DNS 分流
 - **自动化**：开机启动（HKCU Run + `--connect`）、网络变化重连、断线重连、Gateway 失效切换、缓存 Gateway、重扫
 - **连接稳定性**：连接阶段对端点做数据面校验，失败时自动回退到后续候选；失效端点被清除时同步移除「最近可用」标记，避免坏端点被反复优先选中
@@ -153,6 +157,7 @@ UI 调试（只起服务，可用浏览器打开同一套界面）：
 | internal/vpn | 连接状态机 + AETHER_* 推导（10 模式） |
 | internal/node | 节点池 / 测速 / 出口 IP 地理 |
 | internal/sysproxy | 系统代理 + PAC 分流 |
+| internal/apprules | 应用规则：规则推导（通配展开/黑白名单/严格模式）+ netsh 应用与清理 + 进程枚举 |
 | internal/killswitch | 防火墙断线保护 |
 | internal/autostart | 开机启动 |
 | internal/watchguard | 网络监测 / 隧道探测 / 故障切换 |
