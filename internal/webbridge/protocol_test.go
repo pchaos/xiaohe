@@ -72,3 +72,33 @@ func TestApplyProtocolAWG(t *testing.T) {
 		t.Fatalf("ProtocolKey after WireGuard = %s, want wg", got)
 	}
 }
+
+// TestApplyProtocolClearsNative pins the sticky-native bug: switching from AWG
+// (which turns the native backend on) to a core-driven transport (MASQUE) must
+// turn the native backend back off. Before the fix, NativeWireGuard stayed true
+// and the client kept trying the native wintun path (elevation required) no
+// matter what the user picked next — a non-admin user saw "Access is denied"
+// instead of the MASQUE tunnel they asked for.
+func TestApplyProtocolClearsNative(t *testing.T) {
+	awg, ok := ProtocolByKey("awg")
+	if !ok {
+		t.Fatal("ProtocolByKey(awg) not found")
+	}
+	h3, ok := ProtocolByKey("h3")
+	if !ok {
+		t.Fatal("ProtocolByKey(h3) not found")
+	}
+
+	s := applyProtocol(config.Defaults(), awg)
+	if !s.NativeWireGuard {
+		t.Fatal("precondition: AWG must enable the native backend")
+	}
+
+	back := applyProtocol(s, h3)
+	if back.NativeWireGuard {
+		t.Fatal("switching from AWG to MasqueH3 must clear the native backend (it is not sticky)")
+	}
+	if back.AWGJunk {
+		t.Fatal("switching to MasqueH3 must clear the junk decoys")
+	}
+}

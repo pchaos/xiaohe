@@ -82,7 +82,6 @@ func (b *Bridge) startupChecks() {
 	b.refreshLicense()
 }
 
-
 // SetOnQuit registers the callback triggered by the UI "exit" action.
 func (b *Bridge) SetOnQuit(fn func()) { b.onQuit = fn }
 
@@ -389,6 +388,15 @@ func applyProtocol(s config.Settings, p Protocol) config.Settings {
 	// other entry turns the junk back off — leaving it on would make the
 	// "WireGuard" baseline silently obfuscated and every A/B meaningless.
 	s.AWGJunk = p.AWG
+	// The native backend is not sticky: switching from a WireGuard-class
+	// transport (AWG turned it on) to a core-driven one (MASQUE, gool, auto)
+	// must turn it back off, or the user stays stuck on the native path
+	// (wintun + elevation) no matter what they pick next. WG-class modes
+	// (warp/wireguard) keep the user's own native toggle untouched; only a
+	// non-WG transport clears it.
+	if !isWireGuardClass(p.Mode) {
+		s.NativeWireGuard = false
+	}
 	if p.Native {
 		s.NativeWireGuard = true
 	}
@@ -430,6 +438,13 @@ func applyProtocol(s config.Settings, p Protocol) config.Settings {
 		s.ExitNativeTransport = ""
 	}
 	return s
+}
+
+// isWireGuardClass reports whether a mode selects a WireGuard-class transport
+// (classic WARP or its wireguard alias). MASQUE / gool / auto are not, and are
+// what should clear the sticky native toggle.
+func isWireGuardClass(mode string) bool {
+	return mode == string(config.ModeWARP) || mode == string(config.ModeWireGuard)
 }
 
 func (b *Bridge) setMode(w http.ResponseWriter, r *http.Request) {
