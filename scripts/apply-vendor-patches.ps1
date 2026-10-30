@@ -36,6 +36,13 @@ $Patches = @(
             @{ Path = "$Vendor/device/uapi.go"; Marker = 'applyJunkConfig' }
         )
     }
+    @{
+        Name   = 'webview2-nil-controller'
+        Why    = 'go-webview2: guard the async CreateCoreWebView2Controller/Environment callbacks against nil controller/env (e.g. no interactive desktop session), so failure propagates as Embed()==false and Xiaohe degrades to the browser shell instead of a nil-pointer panic'
+        Files  = @(
+            @{ Path = 'vendor/github.com/jchv/go-webview2/pkg/edge/chromium.go'; Marker = 'initErr' }
+        )
+    }
 )
 
 # History (do NOT re-apply): the WARP "reserved bytes" patch (device.reserved +

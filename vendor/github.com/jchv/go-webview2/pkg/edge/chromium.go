@@ -4,6 +4,7 @@
 package edge
 
 import (
+	"fmt"
 	"log"
 	"os"
 	"path/filepath"
@@ -15,11 +16,18 @@ import (
 )
 
 type Chromium struct {
-	hwnd                  uintptr
-	focusOnInit           bool
-	controller            *ICoreWebView2Controller
-	webview               *ICoreWebView2
-	inited                uintptr
+	hwnd        uintptr
+	focusOnInit bool
+	controller  *ICoreWebView2Controller
+	webview     *ICoreWebView2
+	inited      uintptr
+	// initErr holds a controller-creation failure reported by the async
+	// CreateCoreWebView2ControllerCompleted callback. It is read by Embed
+	// after the message loop wakes on inited, so a failed controller
+	// creation (e.g. no interactive desktop session) propagates as
+	// Embed() == false instead of dereferencing a nil controller and
+	// panicking the process.
+	initErr               error
 	envCompleted          *iCoreWebView2CreateCoreWebView2EnvironmentCompletedHandler
 	controllerCompleted   *iCoreWebView2CreateCoreWebView2ControllerCompletedHandler
 	webMessageReceived    *iCoreWebView2WebMessageReceivedEventHandler
@@ -109,6 +117,10 @@ func (e *Chromium) Embed(hwnd uintptr) bool {
 		_, _, _ = w32.User32TranslateMessage.Call(uintptr(unsafe.Pointer(&msg)))
 		_, _, _ = w32.User32DispatchMessageW.Call(uintptr(unsafe.Pointer(&msg)))
 	}
+	if err := e.initErr; err != nil {
+		log.Printf("Embed: controller creation failed: %v", err)
+		return false
+	}
 	e.Init("window.external={invoke:s=>window.chrome.webview.postMessage(s)}")
 	return true
 }
@@ -170,7 +182,14 @@ func (e *Chromium) Release() uintptr {
 
 func (e *Chromium) EnvironmentCompleted(res uintptr, env *ICoreWebView2Environment) uintptr {
 	if int64(res) < 0 {
-		log.Fatalf("Creating environment failed with %08x", res)
+		e.initErr = fmt.Errorf("creating WebView2 environment failed with %08x", res)
+		atomic.StoreUintptr(&e.inited, 1)
+		return 0
+	}
+	if env == nil {
+		e.initErr = fmt.Errorf("creating WebView2 environment returned no environment (no interactive desktop session?)")
+		atomic.StoreUintptr(&e.inited, 1)
+		return 0
 	}
 	_, _, _ = env.vtbl.AddRef.Call(uintptr(unsafe.Pointer(env)))
 	e.environment = env
@@ -185,7 +204,14 @@ func (e *Chromium) EnvironmentCompleted(res uintptr, env *ICoreWebView2Environme
 
 func (e *Chromium) CreateCoreWebView2ControllerCompleted(res uintptr, controller *ICoreWebView2Controller) uintptr {
 	if int64(res) < 0 {
-		log.Fatalf("Creating controller failed with %08x", res)
+		e.initErr = fmt.Errorf("creating WebView2 controller failed with %08x", res)
+		atomic.StoreUintptr(&e.inited, 1)
+		return 0
+	}
+	if controller == nil {
+		e.initErr = fmt.Errorf("creating WebView2 controller returned no controller (no interactive desktop session?)")
+		atomic.StoreUintptr(&e.inited, 1)
+		return 0
 	}
 	_, _, _ = controller.vtbl.AddRef.Call(uintptr(unsafe.Pointer(controller)))
 	e.controller = controller
