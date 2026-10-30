@@ -167,6 +167,13 @@ func (a *App) connectNativeWG(ctx context.Context, s config.Settings) error {
 		}
 	}
 	if err := m.Start(ctx, cfg, nil); err != nil {
+		// The wintun kernel driver needs an elevated token. A non-admin user
+		// gets ERROR_ACCESS_DENIED here; relaunch as administrator (UAC prompt)
+		// instead of leaving a dead connect on a hard-to-read error.
+		if isElevationError(err) && maybeElevateForNative() {
+			a.VPN.SetNativeState(vpn.StatusFailed, s.Mode, "需要管理员权限，正在以管理员身份重新启动…")
+			return fmt.Errorf("native WireGuard needs admin; relaunched elevated: %w", err)
+		}
 		a.VPN.SetNativeState(vpn.StatusFailed, s.Mode, err.Error())
 		return err
 	}
