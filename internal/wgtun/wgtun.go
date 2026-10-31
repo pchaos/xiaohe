@@ -49,9 +49,9 @@ import (
 
 	"github.com/aethergui/aethergui/internal/logx"
 	"golang.org/x/sys/windows"
-	"golang.zx2c4.com/wireguard/conn"
-	"golang.zx2c4.com/wireguard/device"
-	"golang.zx2c4.com/wireguard/tun"
+	"github.com/amnezia-vpn/amneziawg-go/v3/conn"
+	"github.com/amnezia-vpn/amneziawg-go/v3/device"
+	"github.com/amnezia-vpn/amneziawg-go/v3/tun"
 )
 
 // Config is the identity and endpoint a native WireGuard tunnel needs. It is
@@ -467,7 +467,7 @@ func buildUAPI(cfg Config) (string, error) {
 	// keys and are applied (and validated) only after the whole UAPI operation
 	// has been read.
 	if len(cfg.JunkI1) > 0 {
-		fmt.Fprintf(&b, "i1=%x\n", cfg.JunkI1)
+		fmt.Fprintf(&b, "i1=<b %x>\n", cfg.JunkI1) // amneziawg-go template; <b hex> carries raw bytes
 	}
 	if cfg.JunkCount > 0 {
 		fmt.Fprintf(&b, "jc=%d\n", cfg.JunkCount)

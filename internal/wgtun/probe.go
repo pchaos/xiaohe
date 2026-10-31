@@ -9,9 +9,9 @@ import (
 	"time"
 
 	"github.com/aethergui/aethergui/internal/logx"
-	"golang.zx2c4.com/wireguard/conn"
-	"golang.zx2c4.com/wireguard/device"
-	"golang.zx2c4.com/wireguard/tun"
+	"github.com/amnezia-vpn/amneziawg-go/v3/conn"
+	"github.com/amnezia-vpn/amneziawg-go/v3/device"
+	"github.com/amnezia-vpn/amneziawg-go/v3/tun"
 )
 
 // This file implements a PARALLEL handshake pre-screen for the cold-connect

@@ -1,10 +1,15 @@
 # Registry and guard for local patches inside vendor/.
 #
 # WHY: every patch below lives in vendor/, which `go mod vendor` overwrites with
-# the pristine upstream sources. A wiped patch does not fail loudly - the build
-# still succeeds and we silently lose the AWG junk layer. So
-# each patch is (a) registered here with a marker string that only the patched
-# file contains, and (b) stored as a full copy under patches/full/.
+# the pristine upstream sources. A wiped patch does not fail loudly. So each
+# patch is (a) registered here with a marker string that only the patched file
+# contains, and (b) stored as a full copy under patches/full/.
+#
+# HISTORY: the AWG junk layer (awgjunk.go + device/send/uapi hooks on
+# golang.zx2c4.com/wireguard) was REMOVED on 2026-11-01: the native path
+# migrated to the upstream amneziawg-go v3 module, which ships the same
+# packet-outside junk (jc/jmin/jmax + i1 template) natively - no vendored patch
+# needed. Only the webview2 patch remains.
 #
 # USAGE (run from the repo root):
 #   .\scripts\apply-vendor-patches.ps1            # check: are all patches in place?
@@ -21,21 +26,10 @@ param(
 )
 
 $ErrorActionPreference = 'Stop'
-$Vendor = 'vendor/golang.zx2c4.com/wireguard'
 $Store = 'patches/full'
 
 # marker = a string that exists ONLY in the patched version of the file.
 $Patches = @(
-    @{
-        Name   = 'awg-junk'
-        Why    = 'AmneziaWG anti-DPI decoys: junk (jc/jmin/jmax) + fake first packet (i1), generator, pre-handshake send'
-        Files  = @(
-            @{ Path = "$Vendor/device/awgjunk.go"; Marker = 'type awgJunk struct' },
-            @{ Path = "$Vendor/device/device.go"; Marker = 'junk awgJunk' },
-            @{ Path = "$Vendor/device/send.go"; Marker = 'device.junk.enabled()' },
-            @{ Path = "$Vendor/device/uapi.go"; Marker = 'applyJunkConfig' }
-        )
-    }
     @{
         Name   = 'webview2-nil-controller'
         Why    = 'go-webview2: guard the async CreateCoreWebView2Controller/Environment callbacks against nil controller/env (e.g. no interactive desktop session), so failure propagates as Embed()==false and Xiaohe degrades to the browser shell instead of a nil-pointer panic'

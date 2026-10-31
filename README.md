@@ -99,7 +99,7 @@ powershell -ExecutionPolicy Bypass -File scripts\build.ps1
 `build.ps1` 会自动判断并按需补齐原生 WireGuard 依赖,无需手动分步:
 
 - `wintun.dll`(虚拟网卡驱动)缺失时自动从 wintun.net 下载并放到 `core-bin\` 与 exe 旁,已存在则跳过;
-- `golang.zx2c4.com/wireguard` 不在 `go.mod` 时自动 `go get` + `go mod vendor`,已存在则跳过。
+- `amneziawg-go/v3`(WireGuard 的 AmneziaWG 上游分支,自带 junk/i1)不在 `go.mod` 时自动 `go get` + `go mod vendor`,已存在则跳过。
 
 若网络不通导致下载失败,`scripts\setup-wireguard.ps1`(走代理)可单独手动执行。
 

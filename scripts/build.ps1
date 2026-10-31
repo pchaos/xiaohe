@@ -1,5 +1,5 @@
 # build.ps1 - one-shot build: auto-provisions the native WireGuard
-# dependencies (wireguard-go vendored module + wintun.dll) when they are
+# dependencies (amneziawg-go v3 vendored module + wintun.dll) when they are
 # missing, then builds the client exe and stages the local core next to it.
 #
 # The core is NOT downloaded: if core-bin\aether.exe exists locally it is
@@ -9,8 +9,8 @@
 # Auto-provisioning (idempotent, judged by what is already on disk):
 #   - wintun.dll  -> skipped when bin\wintun.dll or core-bin\wintun.dll
 #                    already exists; otherwise downloaded from wintun.net
-#   - wireguard-go -> skipped when go.mod already requires
-#                    golang.zx2c4.com/wireguard; otherwise go get + tidy + vendor
+#   - amneziawg-go (v3) -> skipped when go.mod already requires
+#                    github.com/amnezia-vpn/amneziawg-go/v3; otherwise go get + tidy + vendor
 #
 # NOTE: Windows Defender regularly quarantines freshly built, unsigned Go
 # binaries here ("file contains a virus or potentially unwanted software"),
@@ -31,22 +31,22 @@ $out = Join-Path $root "bin\Xiaohe.exe"
 # ---------------------------------------------------------------------------
 Write-Host "==> [0/4] checking native WireGuard dependencies..." -ForegroundColor Cyan
 
-# wireguard-go: only fetched when the module is not in go.mod yet.
-$needWG = -not (Select-String -Quiet -Path go.mod -Pattern "golang.zx2c4.com/wireguard")
+# amneziawg-go (v3): only fetched when the module is not in go.mod yet.
+$needWG = -not (Select-String -Quiet -Path go.mod -Pattern "github.com/amnezia-vpn/amneziawg-go/v3")
 if ($needWG) {
     # Same proxy story as setup-wireguard.ps1: these fetches need the proxy.
     $proxy = "http://127.0.0.1:10808"
     $env:HTTPS_PROXY = $proxy
     $env:HTTP_PROXY = $proxy
     $env:GOPROXY = "https://proxy.golang.org,direct"
-    Write-Host "==> go.mod lacks golang.zx2c4.com/wireguard; fetching (proxy $proxy)..." -ForegroundColor Yellow
-    go get golang.zx2c4.com/wireguard@latest
-    if ($LASTEXITCODE -ne 0) { throw "go get wireguard failed - is the proxy up?" }
+    Write-Host "==> go.mod lacks github.com/amnezia-vpn/amneziawg-go/v3; fetching (proxy $proxy)..." -ForegroundColor Yellow
+    go get github.com/amnezia-vpn/amneziawg-go/v3@latest
+    if ($LASTEXITCODE -ne 0) { throw "go get amneziawg-go failed - is the proxy up?" }
     go mod tidy
     go mod vendor
     if ($LASTEXITCODE -ne 0) { throw "go mod vendor failed" }
 } else {
-    Write-Host "    wireguard-go already in go.mod - skipping fetch"
+    Write-Host "    amneziawg-go already in go.mod - skipping fetch"
 }
 
 # wintun.dll: skipped when already present anywhere next to the exe or core.
