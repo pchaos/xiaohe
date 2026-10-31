@@ -2,7 +2,7 @@
   "gui": {
     "version": "1.2.1",
     "url": "https://github.com/pchaos/xiaohe/releases/download/v1.2.1/Xiaohe-1.2.1-win-x64.zip",
-    "notes": "移除赛风(Psiphon)；内置核心重装为官方 v2.1.0 并校验 SHA256；修复系统代理被写入死地址导致全部网页打不开。增强连接稳定性：修复连接建立后测速热切换导致的偶发断连，端点数据面失败时自动回退候选，并修复失效端点被反复优先选中的问题。WireGuard / Gool / MasqueH3 实测可用，MasqueH2 与 MIM 在当前网络下如实标注为可能不可用"
+    "notes": "移除赛风(Psiphon)；内置核心重装为官方 v2.1.0 并校验 SHA256；修复系统代理被写入死地址导致全部网页打不开。增强连接稳定性：修复连接建立后测速热切换导致的偶发断连，端点数据面失败时自动回退候选，并修复失效端点被反复优先选中的问题。修复无 WebView2 运行时崩溃；修复切回 MasqueH3 等核心传输仍走原生 WireGuard（现自动关闭 native 开关）；新增原生 WireGuard 自动 UAC 提权；节点测速列未测速时显示「未测速」。WireGuard / Gool / MasqueH3 实测可用，MasqueH2 与 MIM 在当前网络下如实标注为可能不可用"
   },
   "core": {
     "version": "v2.1.0",
