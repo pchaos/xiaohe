@@ -80,6 +80,7 @@ Xiaohe.exe (Go 外壳)
 - **自动化**：开机启动（HKCU Run + `--connect`）、网络变化重连、断线重连、Gateway 失效切换、缓存 Gateway、重扫
 - **连接稳定性**：连接阶段对端点做数据面校验，失败时自动回退到后续候选；失效端点被清除时同步移除「最近可用」标记，避免坏端点被反复优先选中
 - **原生 WireGuard / AWG 自动提权**：未以管理员身份运行时使用原生 WireGuard 或 AWG，Windows 会弹出 UAC 提权确认，程序自动以管理员身份重启并连接；拒绝提权则保持原进程，不循环弹窗
+- **混淆档位（Noize）**：设置 → 网络 → 混淆档位，控制核心传输（WARP/WG/Gool/MASQUE）的反 DPI 假首包与随机垃圾，共 6 档：Off / Light / Balanced / Aggressive / Firewall / GFW；默认使用核心内置档位（仍发混淆），原生 WireGuard 路径由 AWG 开关独立控制
 - **节点列表**：Cloudflare 边缘池、IP/国家/延迟/状态、连接后出口 IP + 国旗（🇯🇵🇺🇸…）；延迟/速度列在未测速时显示「未测速」，测速失败显示「—」，点「开始测速全部节点」后填充具体数值
 - **Core 管理 UI**：主界面 Core 徽标（Ready/Running/Missing/版本）、设置页路径配置 + Detect/Restart/Stop
 
