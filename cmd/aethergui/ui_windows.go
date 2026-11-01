@@ -19,6 +19,7 @@ import (
 	"github.com/aethergui/aethergui/internal/app"
 	"github.com/aethergui/aethergui/internal/config"
 	"github.com/aethergui/aethergui/internal/logx"
+	"github.com/aethergui/aethergui/internal/vpn"
 	"github.com/aethergui/aethergui/internal/webbridge"
 )
 
@@ -320,10 +321,18 @@ func newBrowserShell(a *app.App, br *webbridge.Bridge, url string) *shell {
 				}
 				// Chromium keeps background processes alive after the app window
 				// closes, so shellExited often never fires — this watchdog is the
-				// real exit path. 45s was too long for a terminal-launched client
-				// ("why is the console still open?"): 8s is enough to tell a
-				// closed window from a page reload (SSE pushes every second).
-				if time.Since(seen) < 8*time.Second {
+				// real exit path. Idle budget: 8s normally (a page reload re-
+				// attaches the SSE stream within a second or two), 3s while
+				// disconnected/failed — with no tunnel to keep alive a closed
+				// window should end the process promptly ("why is the console
+				// still open?").
+				idle := time.Since(seen)
+				limit := 8 * time.Second
+				switch s.a.VPN.State().Status {
+				case vpn.StatusDisconnected, vpn.StatusFailed:
+					limit = 3 * time.Second
+				}
+				if idle < limit {
 					continue
 				}
 				logx.Infof("[gui] UI detached; exiting")

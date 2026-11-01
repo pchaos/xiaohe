@@ -31,7 +31,6 @@ import (
 // Version is reported on the about page.
 const Version = "1.2.1"
 
-
 // browserUnsafePorts mirrors Chromium's restricted-ports list
 // (net/base/port_util.cc → ERR_UNSAFE_PORT). The UI URL is opened by
 // Edge/Chrome in browser-fallback mode, so the loopback port must never land
@@ -72,6 +71,7 @@ func listenLoopback(port int) (net.Listener, error) {
 	}
 	return nil, fmt.Errorf("retried 64 loopback ports, all browser-restricted (very unlikely)")
 }
+
 // guiFS holds the embedded frontend for this build.
 var guiFS fs.FS
 
