@@ -318,7 +318,12 @@ func newBrowserShell(a *app.App, br *webbridge.Bridge, url string) *shell {
 					seen = time.Now()
 					continue
 				}
-				if time.Since(seen) < 45*time.Second {
+				// Chromium keeps background processes alive after the app window
+				// closes, so shellExited often never fires — this watchdog is the
+				// real exit path. 45s was too long for a terminal-launched client
+				// ("why is the console still open?"): 8s is enough to tell a
+				// closed window from a page reload (SSE pushes every second).
+				if time.Since(seen) < 8*time.Second {
 					continue
 				}
 				logx.Infof("[gui] UI detached; exiting")
