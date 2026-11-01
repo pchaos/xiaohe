@@ -92,3 +92,32 @@ git checkout HEAD -- scripts/build.ps1 scripts/apply-vendor-patches.ps1 README.m
 | 4 | 原生 WG 无 AWG 回归 | □ |
 
 4/4 通过 → 合并 xehntest 到 dev_base。失败项记录参数 → 回滚或调参重测。
+
+## 6. 混淆参数对照（cmd/awgprobe）
+
+想验证「i2..i5 / 更大 junk 对 WARP 有没有用」时直接用现成工具，不必等整个
+连接流程：
+
+```powershell
+go build -o awgprobe.exe ./cmd/awgprobe        # 本机或 Win10 均可编译
+awgprobe.exe                                    # 基线：无混淆
+awgprobe.exe -i1 "<b 0d0a0d0a><t><r 24>"       # 单个假首包（HTTP 头模样）
+awgprobe.exe -i1 ... -i2 ... -jc 12 -jmin 96 -jmax 420   # 全套
+```
+
+- 身份自动读 `%LOCALAPPDATA%\AetherGUI\aether.toml`（或 `-identity/-priv/-pub`）
+- 握手由 `persistent_keepalive_interval=1` 驱动，不依赖隧道流量
+- 模板语法是 amneziawg-go 的：`<b hex> <t> <r N> <rc N> <rd N>` —— **没有
+  `<c>`、没有 `min-max` 区间**（那是核心 aethernoize 的语法，别混用）
+
+**2026-11-01 首轮实测（Win10, 3 端点 × 3 次, 6s/次）**：
+
+| 配置 | 通过率 |
+|---|---|
+| 基线（无混淆） | 5/9（56%，8.39.204.254 稳定 3/3） |
+| i1 only | 3/9（33%，样本小，视为噪声内） |
+| i1..i5 + jc 12（96-420B） | **0/9（0%）** |
+
+解读：单假包对 WARP 无增益；**假包+decoy 堆满反而系统性恶化（0/9）**，
+疑似触发 WARP 端点的突发丢弃/限速。这支持 one-sided 子集保持克制的设计
+（xiaohe 现状：i1 一个 + jc 适度）。若要更强结论，加大 `-repeat` 复测。
