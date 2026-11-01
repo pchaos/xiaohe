@@ -735,6 +735,13 @@ function renderSplit() {
   $('#ksVal').innerHTML = st.killSwitch ? `<span class="badge ok">${tx('ksOn')}</span>` : `<span class="badge">${tx('ksOff')}</span>`;
   $('#lanVal').innerHTML = S.settings.lan_access ? `<span class="badge ok">${tx('lanOn')}</span>` : `<span class="badge">${tx('lanOff')}</span>`;
   $('#pacVal').textContent = 'aether-split.pac';
+  const ruleSummary = (rules) => {
+    if (!rules || !rules.length) return lang === 'zh-CN' ? '未设置' : 'not set';
+    const preview = rules.slice(0, 2).join('、') + (rules.length > 2 ? ' …' : '');
+    return `${rules.length} 条：${preview}`;
+  };
+  $('#directRulesVal').textContent = ruleSummary(S.settings.split_direct);
+  $('#blockRulesVal').textContent = ruleSummary(S.settings.split_block);
   $('#btnKsToggle').textContent = st.killSwitch ? (lang === 'zh-CN' ? '关闭 Kill Switch' : 'Disable Kill Switch') : (lang === 'zh-CN' ? '启用 Kill Switch' : 'Enable Kill Switch');
 
   const residueEl = $('#residueWarn');
