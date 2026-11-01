@@ -31,6 +31,47 @@ import (
 // Version is reported on the about page.
 const Version = "1.2.1"
 
+
+// browserUnsafePorts mirrors Chromium's restricted-ports list
+// (net/base/port_util.cc → ERR_UNSAFE_PORT). The UI URL is opened by
+// Edge/Chrome in browser-fallback mode, so the loopback port must never land
+// on one of these. Real-world trigger: machines whose TCP dynamic range is
+// overridden (e.g. 1024-15000) put 6665-6669/6697/10080 inside the range the
+// OS assigns to ":0" listeners — a fallback browser then refuses the page.
+var browserUnsafePorts = map[int]bool{
+	1: true, 7: true, 9: true, 11: true, 13: true, 15: true, 17: true, 19: true,
+	20: true, 21: true, 22: true, 23: true, 25: true, 37: true, 42: true, 43: true,
+	53: true, 69: true, 77: true, 79: true, 87: true, 95: true, 101: true, 102: true,
+	103: true, 104: true, 109: true, 110: true, 111: true, 113: true, 115: true, 117: true,
+	119: true, 123: true, 135: true, 137: true, 139: true, 143: true, 161: true, 179: true,
+	389: true, 427: true, 465: true, 512: true, 513: true, 514: true, 515: true, 526: true,
+	530: true, 531: true, 532: true, 540: true, 548: true, 554: true, 556: true, 563: true,
+	587: true, 601: true, 636: true, 989: true, 990: true, 993: true, 995: true, 1719: true,
+	1720: true, 1723: true, 2049: true, 3659: true, 4045: true, 5060: true, 5061: true,
+	6000: true, 6566: true, 6665: true, 6666: true, 6667: true, 6668: true, 6669: true,
+	6697: true, 10080: true,
+}
+
+// listenLoopback binds the UI service on 127.0.0.1. With port 0 the OS picks a
+// free port; if it lands on a browser-restricted port, the listener is closed
+// and retried. An explicitly requested restricted port is an error so the user
+// hears about it instead of staring at ERR_UNSAFE_PORT in the fallback browser.
+func listenLoopback(port int) (net.Listener, error) {
+	if port != 0 && browserUnsafePorts[port] {
+		return nil, fmt.Errorf("port %d is browser-restricted (ERR_UNSAFE_PORT); pick a different -port", port)
+	}
+	for range 64 {
+		ln, err := net.Listen("tcp", net.JoinHostPort("127.0.0.1", fmt.Sprint(port)))
+		if err != nil {
+			return nil, err
+		}
+		if p := ln.Addr().(*net.TCPAddr).Port; !browserUnsafePorts[p] {
+			return ln, nil
+		}
+		_ = ln.Close() // OS handed out a restricted port; ask again
+	}
+	return nil, fmt.Errorf("retried 64 loopback ports, all browser-restricted (very unlikely)")
+}
 // guiFS holds the embedded frontend for this build.
 var guiFS fs.FS
 
@@ -120,8 +161,9 @@ func main() {
 		os.Exit(0)
 	})
 
-	ln, err := net.Listen("tcp", net.JoinHostPort("127.0.0.1", fmt.Sprint(*portFlag)))
+	ln, err := listenLoopback(*portFlag)
 	if err != nil {
+		fmt.Fprintln(os.Stderr, "xiaohe:", err)
 		crashLog(err)
 		os.Exit(1)
 	}
