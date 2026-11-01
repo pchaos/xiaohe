@@ -631,6 +631,29 @@ textarea { min-height: 132px; resize: vertical; font-family: var(--mono); font-s
 @keyframes fade { from { opacity: 0 } to { opacity: 1 } }
 @keyframes pop { from { opacity: 0; transform: translateY(10px) scale(.97) } to { opacity: 1; transform: none } }
 
+/* ── quitting overlay ───────────────────────────────────────────── */
+/* Shown while the app tears down on exit (core stop / proxy restore /
+   firewall cleanup can take a few seconds) so a busy close never reads as a
+   hang. Driven by the shell: window X / tray exit → showQuitting(). */
+.quitting-card {
+  display: flex; flex-direction: column; align-items: center; gap: 14px;
+  padding: 26px 38px;
+  background: var(--panel);
+  border: 1px solid var(--line);
+  border-radius: var(--r-lg);
+  box-shadow: var(--sh-pop);
+}
+.quitting-card p { margin: 0; font-size: 14px; color: var(--text); }
+.quitting-spinner {
+  width: 28px; height: 28px;
+  border: 3px solid var(--accent-soft);
+  border-top-color: var(--accent);
+  border-radius: 50%;
+  animation: spin .9s linear infinite;
+}
+@keyframes spin { to { transform: rotate(360deg) } }
+
+
 
 .hint.warn { color: var(--warn); }
 .proc-list {

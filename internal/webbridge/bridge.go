@@ -89,6 +89,11 @@ func (b *Bridge) SetOnQuit(fn func()) { b.onQuit = fn }
 // SetOnHide registers the callback triggered by the UI "minimise" action.
 func (b *Bridge) SetOnHide(fn func()) { b.onHide = fn }
 
+// NotifyQuitting tells attached UIs to show the "quitting…" overlay. The
+// teardown (core stop, proxy restore, firewall cleanup) can take seconds, and
+// in browser-fallback mode the page is the only surface that can display it.
+func (b *Bridge) NotifyQuitting() { b.push("quitting", nil) }
+
 // Clients reports how many UI instances are attached (the shell watchdog uses
 // it to detect a closed window).
 func (b *Bridge) Clients() int {

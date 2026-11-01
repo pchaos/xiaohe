@@ -5,10 +5,12 @@ package main
 import (
 	"errors"
 	"fmt"
+	"log"
 	"os"
 	"os/exec"
 	"path/filepath"
 	"runtime"
+	"sync/atomic"
 	"time"
 
 	webview2 "github.com/jchv/go-webview2"
@@ -112,13 +114,16 @@ func runUI(a *app.App, br *webbridge.Bridge, url, mode string) {
 
 // shell owns the host window, the browser control and the tray icon.
 type shell struct {
-	a      *app.App
-	br     *webbridge.Bridge
-	wv     webview2.WebView // nil in browser mode
-	host   *walk.MainWindow // message owner for the tray icon
-	hwnd   uintptr
-	trayOK bool
-	url    string
+	a            *app.App
+	br           *webbridge.Bridge
+	wv           webview2.WebView // nil in browser mode
+	host         *walk.MainWindow // message owner for the tray icon
+	hwnd         uintptr
+	trayOK       bool
+	url          string
+	quitting     atomic.Bool // first quit request starts the teardown (CAS)
+	teardownDone atomic.Bool // set once the teardown finished, so WM_CLOSE may destroy the window
+	prevWndProc  uintptr     // original window proc (CallWindowProc target) after subclassing
 }
 
 func (s *shell) run() {
@@ -179,6 +184,8 @@ func newWindowShell(a *app.App, br *webbridge.Bridge, url string) (*shell, error
 	}
 	sh.wv = view
 	sh.hwnd = uintptr(view.Window())
+	webviewHost = sh
+	hookCloseWindow(sh)
 
 	dpi := systemDPI()
 	logx.Infof("[gui] window %dx%d px (dpi %d)", winW, winH, dpi)
@@ -225,15 +232,86 @@ func (s *shell) showWindow() {
 }
 
 // exitFromUI tears the app down and closes the window.
-func (s *shell) exitFromUI() {
+func (s *shell) exitFromUI() { s.beginQuit() }
+
+// beginQuit is the single exit path. The teardown (core stop, proxy restore,
+// kill-switch / app-rules cleanup) can take seconds, so the first quit request
+// — window X, tray menu or the browser-shell watchdog — puts a visible
+// "quitting…" notice up front instead of letting the window vanish and the
+// process linger invisibly (that is what "the terminal window never closes"
+// usually is: the app is still alive, tearing down). Exactly one teardown
+// runs; the window is destroyed once it is done.
+func (s *shell) beginQuit() {
+	if !s.quitting.CompareAndSwap(false, true) {
+		return // a teardown is already running
+	}
+	log.Println("[gui] exiting, please wait…")
+	logx.Infof("[gui] exiting, please wait…")
+	s.showQuittingOverlay()
 	go func() {
+		start := time.Now()
 		s.a.Close()
+		logx.Infof("[gui] teardown finished in %s", time.Since(start))
+		log.Printf("[gui] exit complete in %s", time.Since(start))
+		s.teardownDone.Store(true)
 		if s.wv != nil {
-			s.wv.Destroy()
+			s.wv.Destroy() // re-posts WM_CLOSE; wndProcHook lets it through now
 			return
 		}
 		s.host.Synchronize(func() { _ = s.host.Close() })
 	}()
+}
+
+// showQuittingOverlay puts the "please wait" notice on whichever surface is on
+// screen: the embedded page for the native window (direct JS call), and an SSE
+// push for the browser-fallback window (the only surface we can draw on there).
+func (s *shell) showQuittingOverlay() {
+	if s.wv != nil {
+		s.wv.Eval("window.showQuitting && window.showQuitting()")
+	}
+	s.br.NotifyQuitting()
+}
+
+// wndProcHook is the subclassed window proc of the webview host window. The
+// go-webview2 default destroys the window on WM_CLOSE immediately, leaving the
+// teardown to run after the UI is already gone. Here the first WM_CLOSE starts
+// the quitting sequence and is swallowed; a WM_CLOSE arriving after the
+// teardown finished (s.wv.Destroy() re-posts it) falls through to the
+// library's handler, which closes the window and ends the message loop.
+func wndProcHook(hwnd, msg, wparam, lparam uintptr) uintptr {
+	if msg == wmClose {
+		if sh := webviewHost; sh != nil {
+			if !sh.quitting.Load() {
+				sh.beginQuit()
+				return 0
+			}
+			if !sh.teardownDone.Load() {
+				return 0 // still tearing down: keep the overlay up
+			}
+		}
+	}
+	if sh := webviewHost; sh != nil && sh.prevWndProc != 0 {
+		r, _, _ := procCallWindowProc.Call(sh.prevWndProc, hwnd, msg, wparam, lparam)
+		return r
+	}
+	r, _, _ := procDefWindowProc.Call(hwnd, msg, wparam, lparam)
+	return r
+}
+
+// hookCloseWindow subclasses the webview host window so WM_CLOSE can be
+// deferred while the app tears down. Failure is non-fatal: quit then behaves
+// as before, closing the window first and tearing down in the background.
+func hookCloseWindow(s *shell) {
+	if prev, _, _ := procGetWindowLongPtr.Call(s.hwnd, uintptr(gwlpWndProc)); prev == 0 {
+		logx.Warnf("[gui] cannot hook window close (GetWindowLongPtrW)")
+		return
+	} else {
+		s.prevWndProc = prev
+	}
+	if r, _, _ := procSetWindowLongPtr.Call(s.hwnd, uintptr(gwlpWndProc), wndProcCallback); r == 0 {
+		logx.Warnf("[gui] cannot hook window close (SetWindowLongPtrW)")
+		s.prevWndProc = 0
+	}
 }
 
 // ---------------------------------------------------------------------------
@@ -247,7 +325,29 @@ var (
 	procIsWindowVisible  = user32.NewProc("IsWindowVisible")
 	procGetDpiForSystem  = user32.NewProc("GetDpiForSystem")
 	procGetSystemMetrics = user32.NewProc("GetSystemMetrics")
+	procSetWindowLongPtr = user32.NewProc("SetWindowLongPtrW")
+	procGetWindowLongPtr = user32.NewProc("GetWindowLongPtrW")
+	procCallWindowProc   = user32.NewProc("CallWindowProcW")
+	procDefWindowProc    = user32.NewProc("DefWindowProcW")
 )
+
+// wndProcCallback is the subclassed window proc of the single webview host
+// window (kept alive for the lifetime of the process).
+var wndProcCallback = windows.NewCallback(wndProcHook)
+
+// webviewHost is the live webview shell. The window proc is installed before
+// the message loop starts, so it is always set when wndProcHook runs.
+var webviewHost *shell
+
+// gwlpWndProc is GWLP_WNDPROC: -4 on 32-bit, -6 on 64-bit Windows.
+var gwlpWndProc int
+
+func init() {
+	gwlpWndProc = -4 // GWL_WNDPROC (32-bit index space)
+	if runtime.GOARCH == "amd64" || runtime.GOARCH == "arm64" {
+		gwlpWndProc = -6 // GWLP_WNDPROC (64-bit index space)
+	}
+}
 
 // GetSystemMetrics indices.
 const (
@@ -262,8 +362,9 @@ func isWindowVisible(hwnd uintptr) bool {
 }
 
 const (
-	swHide = 0
-	swShow = 5
+	swHide  = 0
+	swShow  = 5
+	wmClose = 0x0010
 )
 
 // ---------------------------------------------------------------------------

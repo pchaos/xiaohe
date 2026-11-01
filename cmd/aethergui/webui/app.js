@@ -27,6 +27,7 @@ const STRINGS = {
     exitChain: '出口方式', exitRegion: '出口地区', automatic: '自动（由 Psiphon 决定）',
     chainAether: 'Aether（默认）', chainPsiphon: 'Aether → Psiphon',
     wgtun_residue: '上次异常退出有残留，需以管理员身份重启以自动清理',
+    quitting: '正在退出，请稍候…',
   },
   'en-US': {
     home: 'Home', nodes: 'Nodes', split: 'Split', rules: 'Rules', settings: 'Settings', logs: 'Logs', about: 'About',
@@ -49,6 +50,7 @@ const STRINGS = {
     exitChain: 'Exit', exitRegion: 'Exit region', automatic: 'Automatic (Psiphon decides)',
     chainAether: 'Aether (default)', chainPsiphon: 'Aether → Psiphon',
     wgtun_residue: 'Leftover from a previous unclean exit — restart as administrator to clean up',
+    quitting: 'Exiting — please wait…',
   },
 };
 let lang = 'zh-CN';
@@ -326,6 +328,19 @@ async function api(path, body) {
   }
 }
 
+// Shown by the shell (window close / tray exit) while the app tears down:
+// core stop, proxy restore and firewall cleanup can take seconds, and a blank
+// window with no message reads as a hang. Idempotent — the shell also pushes
+// this over SSE for the browser-fallback window.
+function showQuitting() {
+  const mask = document.getElementById('quittingMask');
+  if (!mask) return;
+  const text = document.getElementById('quittingText');
+  if (text) text.textContent = tx('quitting');
+  mask.hidden = false;
+}
+window.showQuitting = showQuitting;
+
 function connectSSE() {
   const src = new EventSource('/api/stream', { withCredentials: true });
   src.onmessage = (ev) => {
@@ -333,6 +348,7 @@ function connectSSE() {
     try { msg = JSON.parse(ev.data); } catch (_) { return; }
     if (msg.type === 'snapshot') applySnapshot(msg.data);
     else if (msg.type === 'log') { pushLog(msg.data); renderLogs(); renderRecent(); }
+    else if (msg.type === 'quitting') showQuitting();
   };
   src.onerror = () => { setTimeout(connectSSE, 1500); };
 }
