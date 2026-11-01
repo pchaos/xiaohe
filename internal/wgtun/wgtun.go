@@ -457,15 +457,11 @@ func buildUAPI(cfg Config) (string, error) {
 	var b strings.Builder
 	fmt.Fprintf(&b, "private_key=%s\n", priv)
 	fmt.Fprintf(&b, "listen_port=0\n")
-	fmt.Fprintf(&b, "replace_peers=true\n")
-	fmt.Fprintf(&b, "public_key=%s\n", pub)
-	fmt.Fprintf(&b, "endpoint=%s\n", cfg.Endpoint)
-	fmt.Fprintf(&b, "allowed_ip=0.0.0.0/0\n")
-	fmt.Fprintf(&b, "allowed_ip=::/0\n")
-	fmt.Fprintf(&b, "persistent_keepalive_interval=25\n")
-	// Fake first packet (I1) first, then the junk decoys: both are device-level
-	// keys and are applied (and validated) only after the whole UAPI operation
-	// has been read.
+	// AmneziaWG junk (device-level keys): i1 fake-first-packet + jc/jmin/jmax
+	// decoys MUST precede the peer block — amneziawg-go's IpcSet dispatches to
+	// handlePeerLine as soon as public_key is seen and rejects device keys
+	// there ("invalid UAPI peer key"). Verified 2026-11-01 on Win10: the old
+	// post-peer order failed native AWG connect with IPC error -22.
 	if len(cfg.JunkI1) > 0 {
 		fmt.Fprintf(&b, "i1=<b %x>\n", cfg.JunkI1) // amneziawg-go template; <b hex> carries raw bytes
 	}
@@ -474,6 +470,12 @@ func buildUAPI(cfg Config) (string, error) {
 		fmt.Fprintf(&b, "jmin=%d\n", cfg.JunkMinSize)
 		fmt.Fprintf(&b, "jmax=%d\n", cfg.JunkMaxSize)
 	}
+	fmt.Fprintf(&b, "replace_peers=true\n")
+	fmt.Fprintf(&b, "public_key=%s\n", pub)
+	fmt.Fprintf(&b, "endpoint=%s\n", cfg.Endpoint)
+	fmt.Fprintf(&b, "allowed_ip=0.0.0.0/0\n")
+	fmt.Fprintf(&b, "allowed_ip=::/0\n")
+	fmt.Fprintf(&b, "persistent_keepalive_interval=25\n")
 	return b.String(), nil
 }
 
